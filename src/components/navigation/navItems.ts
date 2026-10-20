@@ -23,4 +23,5 @@ export const infoNav: NavItem[] = [
 export const legalNav: NavItem[] = [
   { to: '/terms', label: 'Условия использования' },
   { to: '/privacy', label: 'Политика конфиденциальности' },
+  { to: '/admin/orders', label: 'Админ-панель (демо)' },
 ]

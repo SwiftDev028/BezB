@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
 import HomePage from './pages/HomePage'
 
@@ -19,6 +19,9 @@ const TermsPage = lazy(() => import('./pages/TermsPage'))
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'))
 const ContactsPage = lazy(() => import('./pages/ContactsPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout'))
+const AdminOrdersPage = lazy(() => import('./pages/admin/AdminOrdersPage'))
+const AdminOrderDetailPage = lazy(() => import('./pages/admin/AdminOrderDetailPage'))
 
 function PageFallback() {
   return (
@@ -48,6 +51,11 @@ export default function App() {
           <Route path="terms" element={<TermsPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="contacts" element={<ContactsPage />} />
+          <Route path="admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="orders" replace />} />
+            <Route path="orders" element={<AdminOrdersPage />} />
+            <Route path="orders/:id" element={<AdminOrderDetailPage />} />
+          </Route>
           <Route path="404" element={<NotFoundPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
