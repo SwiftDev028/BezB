@@ -1,0 +1,40 @@
+import type { Banner } from '../types'
+
+export const banners: Banner[] = [
+  {
+    id: 'ai',
+    eyebrow: 'AI-сервисы',
+    title: 'Больше возможностей для работы и учёбы',
+    text: 'Подписки на ChatGPT, Claude и другие AI-инструменты — оформление по официальным условиям сервисов.',
+    cta: 'Смотреть AI-подписки',
+    to: '/category/ai',
+    accent: '#e10600',
+  },
+  {
+    id: 'playstation',
+    eyebrow: 'PlayStation',
+    title: 'PS Plus и игры для PS5',
+    text: 'Подписки, пополнение кошелька и новые игры в одном каталоге.',
+    cta: 'Открыть PlayStation',
+    to: '/category/playstation',
+    accent: '#3d7bff',
+  },
+  {
+    id: 'xbox',
+    eyebrow: 'Xbox',
+    title: 'Game Pass без лишних шагов',
+    text: 'Подписки и карты пополнения для консоли и ПК.',
+    cta: 'Открыть Xbox',
+    to: '/category/xbox',
+    accent: '#35c24a',
+  },
+  {
+    id: 'steam',
+    eyebrow: 'Steam',
+    title: 'Пополни баланс — выбери игру',
+    text: 'Пополнение Steam разными суммами и игры для ПК.',
+    cta: 'Открыть Steam',
+    to: '/category/steam',
+    accent: '#7fb7e6',
+  },
+]
