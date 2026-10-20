@@ -1,11 +1,14 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { CreditCard, Info, ShoppingCart } from 'lucide-react'
 import { EmptyState } from '../components/common/EmptyState'
 import { btnPrimary, btnSecondary, inputClass } from '../components/common/ui'
+import { CheckoutResult } from '../components/product/CheckoutResult'
 import { OrderSummary } from '../components/product/OrderSummary'
 import { useCart } from '../context/CartContext'
 import { getProduct } from '../data/products'
+import { placeCheckoutOrder } from '../services/orders/placeCheckoutOrder'
+import type { Order } from '../types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatPrice } from '../utils/format'
 import { lineKey } from '../utils/cart'
@@ -13,13 +16,24 @@ import { validateCheckout, type CheckoutErrors } from '../utils/checkout'
 
 export default function CheckoutPage() {
   useDocumentTitle('Оформление заказа')
-  const { items } = useCart()
+  const { items, clear } = useCart()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [agree, setAgree] = useState(false)
   const [errors, setErrors] = useState<CheckoutErrors>({})
-  const [submitted, setSubmitted] = useState(false)
+  const [placed, setPlaced] = useState<Order | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
+  // Синхронная защита от повторной отправки (двойной клик, повторное нажатие Enter до перерисовки)
+  const submitting = useRef(false)
+
+  // После создания заказа переводим фокус на заголовок результата — для пользователей клавиатуры и скринридеров
+  useEffect(() => {
+    if (placed) document.getElementById('checkout-result-title')?.focus()
+  }, [placed])
+
+  if (placed) return <CheckoutResult order={placed} />
 
   if (items.length === 0) {
     return (
@@ -34,18 +48,34 @@ export default function CheckoutPage() {
     )
   }
 
-  const onSubmit = (e: FormEvent) => {
+  const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (submitting.current) return
+    setSubmitError(null)
     const found = validateCheckout(name, email, agree)
     setErrors(found)
     if (Object.keys(found).length > 0) {
-      setSubmitted(false)
       const firstId = found.name ? 'co-name' : found.email ? 'co-email' : 'co-agree'
       formRef.current?.querySelector<HTMLElement>(`#${firstId}`)?.focus()
       return
     }
-    // Данные никуда не отправляются: бэкенда и оплаты пока нет.
-    setSubmitted(true)
+
+    submitting.current = true
+    setBusy(true)
+    try {
+      // Демо-заказ сохраняется в localStorage через тот же репозиторий, что читает админка
+      const result = await placeCheckoutOrder(items, { name, email })
+      if (!result.ok) {
+        setSubmitError(result.error)
+        return
+      }
+      // Корзину очищаем только после успешного сохранения заказа
+      clear()
+      setPlaced(result.value)
+    } finally {
+      submitting.current = false
+      setBusy(false)
+    }
   }
 
   const errorText = (id: string, message?: string) =>
@@ -127,21 +157,25 @@ export default function CheckoutPage() {
             </p>
           </fieldset>
 
+          <p className="flex gap-2 text-xs text-silver">
+            <Info className="mt-0.5 size-4 shrink-0 text-red" aria-hidden="true" />
+            Нажатие создаст демонстрационный заказ. Он сохранится только в этом браузере (localStorage), на сервер не
+            отправляется, оплата не выполняется.
+          </p>
+
           <div className="flex flex-col gap-3 sm:flex-row">
-            <button type="submit" className={btnPrimary}>
-              Оформить заказ
+            <button type="submit" disabled={busy} aria-busy={busy} className={btnPrimary}>
+              {busy ? 'Создаём заказ…' : 'Оформить заказ'}
             </button>
             <Link to="/cart" className={btnSecondary}>
               Вернуться в корзину
             </Link>
           </div>
 
-          {submitted && (
-            <div role="status" className="border border-line bg-graphite p-4">
-              <p className="font-semibold text-white">Оформление заказа находится в разработке.</p>
-              <p className="mt-1 text-sm text-silver">
-                Заказ не создан, оплата не выполнена, введённые данные никуда не отправлены. Корзина сохранена.
-              </p>
+          {submitError && (
+            <div role="alert" className="border border-red bg-red/10 p-4">
+              <p className="font-semibold text-white">Заказ не создан</p>
+              <p className="mt-1 text-sm text-silver">{submitError} Корзина сохранена — попробуйте ещё раз.</p>
             </div>
           )}
         </form>

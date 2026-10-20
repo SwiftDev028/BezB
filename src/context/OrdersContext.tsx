@@ -46,6 +46,17 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Заказ мог быть оформлен в другой вкладке этого же браузера — подхватываем изменение хранилища
+  useEffect(() => {
+    if (ordersRepository.kind !== 'local-demo') return
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== null && e.key !== 'bezb:admin:orders') return
+      ordersRepository.list().then(setOrders).catch(() => undefined)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   const persist = useCallback(async (next: Order): Promise<Result<Order>> => {
     try {
       await ordersRepository.save(next)
@@ -68,7 +79,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
 
   const create = useCallback<OrdersContextValue['create']>(
     async (input) => {
-      const made = createOrder(input, latest.current, getProduct, nowIso())
+      const made = createOrder(input, latest.current, getProduct, nowIso(), undefined, { source: 'admin' })
       return made.ok ? persist(made.value) : made
     },
     [persist],

@@ -104,7 +104,7 @@ export default function ProductPage() {
             <FavoriteButton productId={product.id} title={product.title} className="border border-line" />
           </div>
           <p className="mt-3 text-sm text-silver">
-            Оформление заказа находится в разработке — оплата пока не подключена.
+            Оплата пока не подключена: оформление создаёт только демонстрационный заказ.
           </p>
 
           <dl className="mt-8 divide-y divide-line border-y border-line">

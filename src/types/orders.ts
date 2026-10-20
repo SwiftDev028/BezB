@@ -6,6 +6,9 @@ export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'failed' | 'refunded
 /** Статус выполнения заказа. `delivered` и `cancelled` — конечные. */
 export type FulfillmentStatus = 'new' | 'processing' | 'awaiting_supplier' | 'delivered' | 'cancelled'
 
+/** Откуда появился заказ: оформлен покупателем на сайте или создан вручную в админке. */
+export type OrderSource = 'checkout' | 'admin'
+
 export type OrderEventType =
   | 'created'
   | 'payment_status'
@@ -57,6 +60,8 @@ export interface Order {
   history: OrderEvent[]
   /** Все заказы прототипа — демонстрационные */
   isDemo: boolean
+  /** Нет у заказов, созданных до появления поля (демо-данные, ручные заказы) */
+  source?: OrderSource
 }
 
 export type OrderSortKey = 'new' | 'old' | 'total-desc' | 'total-asc'

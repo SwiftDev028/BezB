@@ -82,6 +82,8 @@ export default function AdminOrderDetailPage() {
       <p className="-mt-3 mb-6 text-sm text-silver">
         Создан {formatDateTime(order.createdAt)} · обновлён {formatDateTime(order.updatedAt)} · версия {order.version}
         {order.isDemo && ' · демонстрационный заказ'}
+        {order.source === 'checkout' && ' · оформлен покупателем на сайте'}
+        {order.source === 'admin' && ' · создан вручную в админке'}
       </p>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_24rem]">

@@ -6,6 +6,7 @@ import type {
   OrderFilters,
   OrderItem,
   OrderSortKey,
+  OrderSource,
   PaymentStatus,
   Product,
   Result,
@@ -23,7 +24,7 @@ export const paymentLabels: Record<PaymentStatus, string> = {
 }
 
 export const fulfillmentLabels: Record<FulfillmentStatus, string> = {
-  new: 'Новый',
+  new: 'Ожидает обработки',
   processing: 'В работе',
   awaiting_supplier: 'Ждём поставщика',
   delivered: 'Выдан',
@@ -84,6 +85,7 @@ export function createOrder(
   lookup: (id: string) => Product | undefined,
   now: string,
   note = 'Заказ создан вручную (демо)',
+  options: { paymentStatus?: PaymentStatus; source?: OrderSource } = {},
 ): Result<Order> {
   const items: OrderItem[] = []
   for (const line of input.lines) {
@@ -117,11 +119,12 @@ export function createOrder(
     items,
     total: orderTotal(items),
     currency: 'RUB',
-    paymentStatus: 'unpaid',
+    paymentStatus: options.paymentStatus ?? 'unpaid',
     fulfillmentStatus: 'new',
     delivery: { note: '' },
     history: [],
     isDemo: true,
+    ...(options.source ? { source: options.source } : {}),
   }
   return ok({ ...base, history: [event(base, 'created', now, { text: note })] })
 }

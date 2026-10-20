@@ -164,17 +164,18 @@ export default function AdminOrdersPage() {
         />
       ) : (
         <div>
-          <div aria-hidden="true" className="hidden grid-cols-[8rem_1fr_1.2fr_9.5rem_9.5rem_6.5rem] gap-3 border-b border-line px-4 pb-2 text-xs uppercase tracking-wider text-silver lg:grid">
+          <div aria-hidden="true" className="hidden grid-cols-[8rem_1fr_1.2fr_9.5rem_11.5rem_6.5rem] gap-3 border-b border-line px-4 pb-2 text-xs uppercase tracking-wider text-silver lg:grid">
             <span>Заказ</span><span>Покупатель</span><span>Состав</span><span>Оплата</span><span>Выполнение</span><span className="text-right">Сумма</span>
           </div>
           <ul className="divide-y divide-line border border-line bg-coal lg:border-t-0">
             {results.map((o) => (
-              <li key={o.id} className="relative grid gap-x-3 gap-y-2 p-4 transition-colors hover:bg-graphite lg:grid-cols-[8rem_1fr_1.2fr_9.5rem_9.5rem_6.5rem] lg:items-center">
+              <li key={o.id} className="relative grid gap-x-3 gap-y-2 p-4 transition-colors hover:bg-graphite lg:grid-cols-[8rem_1fr_1.2fr_9.5rem_11.5rem_6.5rem] lg:items-center">
                 <div>
                   <Link to={`/admin/orders/${o.id}`} className="font-display text-lg uppercase text-white after:absolute after:inset-0 hover:text-red-hot">
                     {o.number}
                   </Link>
                   <p className="text-xs text-silver">{formatDateTime(o.createdAt)}</p>
+                  {o.source === 'checkout' && <p className="text-xs font-semibold text-red-hot">С сайта</p>}
                 </div>
                 <div className="min-w-0">
                   <p className="truncate font-semibold">{o.customer.name}</p>
