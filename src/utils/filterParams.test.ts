@@ -13,6 +13,8 @@ describe('параметры фильтров в URL', () => {
       query: 'game pass',
       category: 'xbox' as const,
       type: 'subscription' as const,
+      region: 'USA',
+      denomination: '25:USD',
       minPrice: 500,
       maxPrice: 2000,
       onlyAvailable: true,

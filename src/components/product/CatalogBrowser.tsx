@@ -3,7 +3,7 @@ import { SearchX } from 'lucide-react'
 import type { Category } from '../../types'
 import { useCatalog } from '../../context/CatalogContext'
 import { useCatalogFilters } from '../../hooks/useCatalogFilters'
-import { filterProducts, uniquePlatforms } from '../../utils/catalog'
+import { filterProducts } from '../../utils/catalog'
 import { EmptyState } from '../common/EmptyState'
 import { btnSecondary } from '../common/ui'
 import { ProductFilters } from './ProductFilters'
@@ -20,11 +20,10 @@ export function CatalogBrowser({ category, showSearch = false, emptyTitle = '–ù–
   const { products, loading, error } = useCatalog()
   const { filters, view, update, setView, reset } = useCatalogFilters(category?.id)
 
-  const scope = useMemo(
-    () => (category ? products.filter((p) => p.category === category.id) : products),
-    [category, products],
-  )
-  const platforms = useMemo(() => uniquePlatforms(scope), [scope])
+  const scope = useMemo(() => {
+    const selectedCategory = category?.id ?? filters.category
+    return selectedCategory === 'all' ? products : products.filter((p) => p.category === selectedCategory)
+  }, [category, filters.category, products])
   const results = useMemo(() => filterProducts(products, filters), [filters])
 
   return (
@@ -32,9 +31,11 @@ export function CatalogBrowser({ category, showSearch = false, emptyTitle = '–ù–
       <ProductFilters
         filters={filters}
         view={view}
-        platforms={platforms}
+        products={scope}
         fixedCategory={category}
         showSearch={showSearch}
+        loading={loading}
+        hasError={Boolean(error)}
         resultCount={results.length}
         onChange={update}
         onViewChange={setView}

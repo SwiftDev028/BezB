@@ -80,6 +80,9 @@ export interface CatalogFilters {
   category: CategoryId | 'all'
   type: ProductType | 'all'
   platform: string | 'all'
+  region: string | 'all'
+  /** Stable key combines face value and its currency, e.g. "25:USD". */
+  denomination: string | null
   minPrice: number | null
   maxPrice: number | null
   onlyAvailable: boolean

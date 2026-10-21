@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Product, CategoryId, ProductType } from '../types'
 import { requireSupabase, supabaseConfigured } from '../services/supabase'
 
@@ -61,18 +61,32 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const refresh = async () => {
-    if (!supabaseConfigured) { setError('Каталог Supabase не настроен.'); setLoading(false); return }
+  const latestRequest = useRef(0)
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const requestId = ++latestRequest.current
+    if (!supabaseConfigured) {
+      if (requestId === latestRequest.current && !signal?.aborted) { setError('Каталог Supabase не настроен.'); setLoading(false) }
+      return
+    }
     setLoading(true)
     try {
-      const { data, error: queryError } = await requireSupabase().from('catalog_public').select('*').order('title')
+      let query = requireSupabase().from('catalog_public').select('*').order('title')
+      if (signal) query = query.abortSignal(signal)
+      const { data, error: queryError } = await query
       if (queryError) throw queryError
-      setProducts(mapCatalogRows(data ?? [])); setError(null)
-    } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить каталог.') }
-    finally { setLoading(false) }
-  }
-  useEffect(() => { let active = true; void refresh().finally(() => { if (!active) return }); return () => { active = false } }, [])
-  const value = useMemo<CatalogValue>(() => ({ products, loading, error, getProduct: (id, region) => findCatalogProduct(products, id, region), refresh }), [products, loading, error])
+      if (requestId === latestRequest.current && !signal?.aborted) { setProducts(mapCatalogRows(data ?? [])); setError(null) }
+    } catch (e) {
+      if (requestId === latestRequest.current && !signal?.aborted) setError(e instanceof Error ? e.message : 'Не удалось загрузить каталог.')
+    } finally {
+      if (requestId === latestRequest.current && !signal?.aborted) setLoading(false)
+    }
+  }, [])
+  useEffect(() => {
+    const controller = new AbortController()
+    void refresh(controller.signal)
+    return () => { controller.abort(); latestRequest.current += 1 }
+  }, [refresh])
+  const value = useMemo<CatalogValue>(() => ({ products, loading, error, getProduct: (id, region) => findCatalogProduct(products, id, region), refresh: () => refresh() }), [products, loading, error, refresh])
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>
 }
 

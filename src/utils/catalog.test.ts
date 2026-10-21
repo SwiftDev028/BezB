@@ -33,6 +33,18 @@ describe('каталог', () => {
     expect(result.length).toBeLessThan(products.length)
   })
 
+  it('фильтрует вариант каталога по региону и номиналу с валютой', () => {
+    const variants = [
+      { ...products[0], id: 'us-25', country: 'USA', denomination: 25, denominationCurrency: 'USD' },
+      { ...products[0], id: 'us-50', country: 'USA', denomination: 50, denominationCurrency: 'USD' },
+      { ...products[0], id: 'tr-25', country: 'Turkey', denomination: 25, denominationCurrency: 'TRY' },
+      { ...products[0], id: 'no-denomination', country: 'USA', denomination: null, denominationCurrency: null },
+    ]
+    expect(filterProducts(variants, f({ region: 'USA' })).map((p) => p.id)).toEqual(['us-25', 'us-50', 'no-denomination'])
+    expect(filterProducts(variants, f({ region: 'USA', denomination: '25:USD' })).map((p) => p.id)).toEqual(['us-25'])
+    expect(filterProducts(variants, f({ region: 'Turkey', denomination: '25:USD' }))).toEqual([])
+  })
+
   it('ищет без учёта регистра и по нескольким словам', () => {
     const result = filterProducts(products, f({ query: 'CLAUDE pro' }))
     expect(result.map((p) => p.slug)).toContain('ai-claude-pro-1m')

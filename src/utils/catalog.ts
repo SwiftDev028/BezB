@@ -5,6 +5,8 @@ export const defaultFilters: CatalogFilters = {
   category: 'all',
   type: 'all',
   platform: 'all',
+  region: 'all',
+  denomination: null,
   minPrice: null,
   maxPrice: null,
   onlyAvailable: false,
@@ -55,6 +57,13 @@ export function filterProducts(products: Product[], filters: CatalogFilters): Pr
     if (filters.category !== 'all' && p.category !== filters.category) return false
     if (filters.type !== 'all' && p.type !== filters.type) return false
     if (filters.platform !== 'all' && p.platform !== filters.platform) return false
+    if (filters.region !== 'all' && (p.country ?? '') !== filters.region) return false
+    if (filters.denomination !== null) {
+      const denominationKey = p.denomination == null
+        ? null
+        : `${p.denomination}:${p.denominationCurrency ?? ''}`
+      if (denominationKey !== filters.denomination) return false
+    }
     if (filters.minPrice !== null && p.price < filters.minPrice) return false
     if (filters.maxPrice !== null && p.price > filters.maxPrice) return false
     if (filters.onlyAvailable && !p.available) return false
