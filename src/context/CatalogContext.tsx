@@ -13,7 +13,7 @@ export function mapCatalogRows(rows: Record<string, any>[]): Product[] {
     restrictions: Array.isArray(row.restrictions) ? row.restrictions : [], regions: undefined, available: row.availability === 'in_stock',
     popularity: Number(row.popularity ?? 0), addedAt: row.created_at ?? row.updated_at, tags: [row.brand, row.region].filter(Boolean),
     groupId: row.group_id, brand: row.brand, country: row.region || undefined,
-    denomination: row.denomination === null ? null : Number(row.denomination), denominationCurrency: row.denomination_currency,
+    denomination: row.denomination == null ? null : Number(row.denomination), denominationCurrency: row.denomination_currency,
     imageUrl: row.image_url, activationInstructions: row.activation_instructions ?? '',
   }))
   const regionsByGroup = new Map<string, string[]>()
@@ -23,7 +23,26 @@ export function mapCatalogRows(rows: Record<string, any>[]): Product[] {
     if (!regions.includes(product.country)) regions.push(product.country)
     regionsByGroup.set(product.groupId, regions)
   }
-  return mapped.map((product) => ({ ...product, regions: product.groupId ? regionsByGroup.get(product.groupId) : undefined }))
+  const withRegions = mapped.map((product) => ({ ...product, regions: product.groupId ? regionsByGroup.get(product.groupId) : undefined }))
+  return sortCatalogProducts(withRegions)
+}
+
+function sortCatalogProducts(products: Product[]): Product[] {
+  return [...products].sort((a, b) => {
+    const aHasDenomination = typeof a.denomination === 'number' && Number.isFinite(a.denomination)
+    const bHasDenomination = typeof b.denomination === 'number' && Number.isFinite(b.denomination)
+
+    if (aHasDenomination !== bHasDenomination) return aHasDenomination ? -1 : 1
+    if (!aHasDenomination || !bHasDenomination) return a.title.localeCompare(b.title, 'ru')
+
+    const regionOrder = (a.country ?? '').localeCompare(b.country ?? '', 'ru')
+    if (regionOrder !== 0) return regionOrder
+
+    const currencyOrder = (a.denominationCurrency ?? '').localeCompare(b.denominationCurrency ?? '', 'ru')
+    if (currencyOrder !== 0) return currencyOrder
+
+    return a.denomination! - b.denomination! || a.title.localeCompare(b.title, 'ru')
+  })
 }
 
 /** Resolve a catalog row by its variant ID/slug and, when supplied, exact region. */
