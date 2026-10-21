@@ -5,7 +5,7 @@ import { ProductArt } from '../components/common/ProductArt'
 import { btnPrimary } from '../components/common/ui'
 import { OrderSummary } from '../components/product/OrderSummary'
 import { useCart } from '../context/CartContext'
-import { getProduct } from '../data/products'
+import { useCatalog } from '../context/CatalogContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { MAX_QUANTITY, lineKey } from '../utils/cart'
 import { formatPrice } from '../utils/format'
@@ -13,6 +13,7 @@ import { formatPrice } from '../utils/format'
 export default function CartPage() {
   useDocumentTitle('Корзина')
   const { items, remove, changeQuantity, clear } = useCart()
+  const { getProduct } = useCatalog()
 
   return (
     <div className="container-x py-8 sm:py-12">
@@ -35,7 +36,7 @@ export default function CartPage() {
                 return (
                   <li key={key} className="grid grid-cols-[5.5rem_1fr] gap-x-3 gap-y-3 p-3 sm:grid-cols-[8rem_1fr_auto] sm:p-4">
                     <Link to={`/product/${product.slug}`} aria-label={product.title} className="row-span-1">
-                      <ProductArt category={product.category} type={product.type} />
+                      <ProductArt category={product.category} type={product.type} imageUrl={product.imageUrl} />
                     </Link>
                     <div className="min-w-0">
                       <Link to={`/product/${product.slug}`} className="font-display text-lg uppercase leading-tight hover:text-red-hot">

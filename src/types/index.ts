@@ -30,6 +30,14 @@ export interface Product {
   popularity: number
   addedAt: string
   tags: string[]
+  /** Live Supabase catalog metadata. */
+  groupId?: string
+  brand?: string
+  country?: string
+  denomination?: number | null
+  denominationCurrency?: string | null
+  imageUrl?: string | null
+  activationInstructions?: string
 }
 
 export interface Category {

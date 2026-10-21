@@ -8,20 +8,21 @@ import { BannerSlider } from '../components/home/BannerSlider'
 import { Benefits } from '../components/home/Benefits'
 import { CategoryTiles } from '../components/home/CategoryTiles'
 import { ProductGrid } from '../components/product/ProductGrid'
-import { products } from '../data/products'
+import { useCatalog } from '../context/CatalogContext'
 import { faq } from '../data/faq'
 import { sortProducts } from '../utils/catalog'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 export default function HomePage() {
   useDocumentTitle()
+  const { products } = useCatalog()
 
-  const popular = useMemo(() => sortProducts(products, 'popular').slice(0, 8), [])
+  const popular = useMemo(() => sortProducts(products, 'popular').slice(0, 8), [products])
   const offers = useMemo(
     () => sortProducts(products.filter((p) => p.badge === 'sale' && p.available), 'price-asc').slice(0, 4),
-    [],
+    [products],
   )
-  const fresh = useMemo(() => sortProducts(products, 'new').slice(0, 4), [])
+  const fresh = useMemo(() => sortProducts(products, 'new').slice(0, 4), [products])
 
   return (
     <>

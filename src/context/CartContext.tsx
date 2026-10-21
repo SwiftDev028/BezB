@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react'
 import type { CartItem } from '../types'
 import { addItem, cartCount, cartTotal, parseCartItems, removeItem, setQuantity } from '../utils/cart'
-import { getProduct } from '../data/products'
+import { useCatalog } from './CatalogContext'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 
 interface CartContextValue {
@@ -17,6 +17,7 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null)
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { getProduct } = useCatalog()
   const [items, update] = useLocalStorage<CartItem[]>('bezb:cart', [], parseCartItems)
 
   // Позиции, которых больше нет в каталоге, не учитываем и не показываем

@@ -1,0 +1,43 @@
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { categories, typeLabels } from '../../data/categories'
+import type { CategoryId, ProductType } from '../../types'
+import { requireSupabase } from '../../services/supabase'
+import { useCatalog } from '../../context/CatalogContext'
+import { useDocumentTitle } from '../../hooks/useDocumentTitle'
+import { btnPrimary, btnSecondary, inputClass } from '../../components/common/ui'
+
+type Row = Record<string, any>
+const blank = { product_id:'', slug:'', group_id:'', title:'', brand:'', platform:'', category:'apple' as CategoryId, product_type:'gift-card' as ProductType, region:'', denomination:'', denomination_currency:'', unit_price:'', description:'', image_url:'', activation_instructions:'', restrictions:'', availability:'out_of_stock', publication_status:'draft' }
+export default function AdminCatalogPage() {
+  useDocumentTitle('Админ: каталог')
+  const { refresh: refreshPublic } = useCatalog()
+  const [rows,setRows]=useState<Row[]>([]); const [form,setForm]=useState(blank); const [original,setOriginal]=useState<{id:string;region:string}|null>(null)
+  const [loading,setLoading]=useState(true); const [busy,setBusy]=useState(false); const [error,setError]=useState(''); const [message,setMessage]=useState('')
+  const load=useCallback(async()=>{setLoading(true);try{const {data,error:e}=await requireSupabase().from('products').select('*').order('brand').order('title');if(e)throw e;setRows(data??[]);setError('')}catch(e){setError(e instanceof Error?e.message:'Не удалось загрузить товары.')}finally{setLoading(false)}},[])
+  useEffect(()=>{void load()},[load])
+  const edit=(p:Row)=>{setOriginal({id:p.product_id,region:p.region});setForm({...blank,...p,group_id:p.group_id??'',denomination:p.denomination??'',denomination_currency:p.denomination_currency??'',unit_price:String(p.unit_price),restrictions:Array.isArray(p.restrictions)?p.restrictions.join('\n'):''});setMessage('')}
+  const submit=async(e:FormEvent)=>{e.preventDefault();setBusy(true);setError('');setMessage('');try{
+    const values={product_id:form.product_id.trim(),slug:form.slug.trim(),group_id:form.group_id||crypto.randomUUID(),title:form.title.trim(),brand:form.brand.trim(),platform:form.platform.trim(),category:form.category,product_type:form.product_type,region:form.region.trim(),denomination:form.denomination===''?null:Number(form.denomination),denomination_currency:form.denomination_currency.trim()||null,unit_price:Number(form.unit_price),currency:'RUB',description:form.description.trim(),image_url:form.image_url.trim()||null,activation_instructions:form.activation_instructions.trim(),restrictions:form.restrictions.split('\n').map(x=>x.trim()).filter(Boolean),availability:form.availability,publication_status:form.publication_status}
+    const db=requireSupabase();const result=original?await db.from('products').update(values).eq('product_id',original.id).eq('region',original.region):await db.from('products').insert(values)
+    if(result.error)throw result.error
+    setMessage('Товар сохранён.');setForm(blank);setOriginal(null);await Promise.all([load(),refreshPublic()])
+  }catch(e){setError(e instanceof Error?e.message:'Не удалось сохранить товар.')}finally{setBusy(false)}}
+  const remove=async(p:Row)=>{if(!window.confirm(`Удалить вариант «${p.title}»? Это невозможно, если на него ссылаются коды или заказы.`))return;try{const {error:e}=await requireSupabase().from('products').delete().eq('product_id',p.product_id).eq('region',p.region);if(e)throw e;await Promise.all([load(),refreshPublic()])}catch(e){setError(e instanceof Error?e.message:'Не удалось удалить вариант.')}}
+  const field=(key:keyof typeof blank,label:string,type='text',required=false)=><label className="block text-sm text-silver">{label}<input required={required} type={type} step={type==='number'?'0.01':undefined} value={form[key]} onChange={e=>setForm(f=>({...f,[key]:e.target.value}))} className={inputClass}/></label>
+  return <section className="space-y-6"><div><h1 className="text-4xl">Каталог цифровых товаров</h1><p className="mt-2 text-silver">Каждая строка — отдельный продаваемый вариант. Общий ID группы связывает регионы и номиналы одного товара. Черновики и скрытые позиции не выдаются покупателям.</p></div>
+    {error&&<p role="alert" className="border border-red p-3 text-red-hot">{error}</p>}{message&&<p role="status" className="text-sm text-silver">{message}</p>}
+    <form onSubmit={submit} className="grid gap-4 border border-line bg-coal p-4 sm:grid-cols-2 lg:grid-cols-3"><h2 className="text-2xl sm:col-span-2 lg:col-span-3">{original?'Редактировать вариант':'Добавить вариант'}</h2>
+      {field('product_id','ID варианта (уникальный SKU BezB)','text',true)}{field('slug','Slug страницы','text',true)}{field('group_id','ID группы вариантов (пусто = новая группа)')}{field('title','Название','text',true)}{field('brand','Бренд','text',true)}{field('platform','Платформа')}
+      <label className="block text-sm text-silver">Категория<select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value as CategoryId}))} className={inputClass}>{categories.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></label>
+      <label className="block text-sm text-silver">Тип<select value={form.product_type} onChange={e=>setForm(f=>({...f,product_type:e.target.value as ProductType}))} className={inputClass}>{Object.entries(typeLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+      {field('region','Страна / регион')}{field('denomination','Номинал','number')}{field('denomination_currency','Валюта номинала')}{field('unit_price','Цена продажи, RUB','number',true)}{field('image_url','URL изображения','url')}
+      <label className="block text-sm text-silver">Наличие<select value={form.availability} onChange={e=>setForm(f=>({...f,availability:e.target.value}))} className={inputClass}><option value="in_stock">В наличии</option><option value="out_of_stock">Нет в наличии</option><option value="unavailable">Недоступен</option></select></label>
+      <label className="block text-sm text-silver">Публикация<select value={form.publication_status} onChange={e=>setForm(f=>({...f,publication_status:e.target.value}))} className={inputClass}><option value="draft">Черновик</option><option value="published">Опубликован</option><option value="hidden">Скрыт</option></select></label>
+      <label className="block text-sm text-silver sm:col-span-2">Описание<textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} className={`${inputClass} min-h-24`}/></label>
+      <label className="block text-sm text-silver sm:col-span-2">Инструкция по активации<textarea value={form.activation_instructions} onChange={e=>setForm(f=>({...f,activation_instructions:e.target.value}))} className={`${inputClass} min-h-24`}/></label>
+      <label className="block text-sm text-silver sm:col-span-2">Ограничения (каждое с новой строки)<textarea value={form.restrictions} onChange={e=>setForm(f=>({...f,restrictions:e.target.value}))} className={`${inputClass} min-h-24`}/></label>
+      <div className="flex gap-2 sm:col-span-2 lg:col-span-3"><button disabled={busy} className={btnPrimary}>{busy?'Сохраняем…':'Сохранить вариант'}</button>{original&&<button type="button" className={btnSecondary} onClick={()=>{setOriginal(null);setForm(blank)}}>Отмена</button>}</div>
+    </form>
+    <div className="overflow-x-auto border border-line"><table className="w-full min-w-[900px] text-left text-sm"><thead className="bg-coal text-silver"><tr>{['Вариант','Бренд / регион / номинал','Цена','Наличие','Публикация','Действия'].map(h=><th key={h} className="p-3">{h}</th>)}</tr></thead><tbody>{rows.map(p=><tr key={`${p.product_id}:${p.region}`} className="border-t border-line"><td className="p-3">{p.title}<span className="block text-xs text-silver">{p.product_id} · /{p.slug}</span></td><td className="p-3">{p.brand} · {p.region||'без региона'} · {p.denomination??'—'} {p.denomination_currency??''}<span className="block text-xs text-silver">группа {String(p.group_id).slice(0,8)}</span></td><td className="p-3">{p.unit_price} RUB</td><td className="p-3">{p.availability}</td><td className="p-3">{p.publication_status}</td><td className="p-3"><button onClick={()=>edit(p)} className="mr-3 underline">Изменить</button><button onClick={()=>void remove(p)} className="text-red-hot underline">Удалить</button></td></tr>)}</tbody></table>{loading&&<p className="p-4 text-silver">Загрузка…</p>}{!loading&&rows.length===0&&<p className="p-4 text-silver">Каталог пока пуст.</p>}</div>
+  </section>
+}

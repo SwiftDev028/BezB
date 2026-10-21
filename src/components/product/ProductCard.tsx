@@ -27,7 +27,7 @@ export function ProductCard({ product, layout = 'grid' }: ProductCardProps) {
     >
       <div className={`relative ${isList ? 'sm:w-64 sm:shrink-0' : ''}`}>
         <Link to={href} tabIndex={-1} aria-hidden="true" className="block">
-          <ProductArt category={product.category} type={product.type} label={product.platform} />
+          <ProductArt category={product.category} type={product.type} label={product.platform} imageUrl={product.imageUrl} />
         </Link>
         {product.badge && (
           <div className="absolute left-2 top-2">

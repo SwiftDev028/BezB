@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ChevronRight, Globe, PackageCheck, TriangleAlert } from 'lucide-react'
 import { categoryById, typeLabels } from '../data/categories'
-import { getProduct, products } from '../data/products'
+import { useCatalog } from '../context/CatalogContext'
 import { relatedProducts } from '../utils/catalog'
 import { ProductArt } from '../components/common/ProductArt'
 import { SectionHeading } from '../components/common/SectionHeading'
@@ -17,15 +17,19 @@ import NotFoundPage from './NotFoundPage'
 
 export default function ProductPage() {
   const { slug = '' } = useParams()
-  const product = getProduct(slug)
-  const [chosenRegion, setChosenRegion] = useState<string | null>(null)
+  const { products, getProduct, loading } = useCatalog()
+  const initialProduct = getProduct(slug)
+  const [variantId, setVariantId] = useState(slug)
+  useEffect(() => setVariantId(slug), [slug])
+  const product = getProduct(variantId) ?? initialProduct
   useDocumentTitle(product?.title)
 
+  if (loading && !product) return <div role="status" className="container-x py-12 text-silver">Загружаем товар…</div>
   if (!product) return <NotFoundPage />
 
   const category = categoryById[product.category]
-  const region = product.regions ? (chosenRegion && product.regions.includes(chosenRegion) ? chosenRegion : product.regions[0]) : undefined
-  const related = relatedProducts(products, product)
+  const variants = products.filter((p) => p.groupId && p.groupId === product.groupId)
+  const related = relatedProducts(products, product).filter((p) => p.groupId !== product.groupId)
 
   return (
     <div className="container-x py-6 sm:py-10">
@@ -45,7 +49,7 @@ export default function ProductPage() {
 
       <div className="grid gap-6 lg:grid-cols-2 lg:gap-10">
         <div className="relative">
-          <ProductArt category={product.category} type={product.type} label={product.platform} className="border border-line" />
+          <ProductArt category={product.category} type={product.type} label={product.platform} imageUrl={product.imageUrl} className="border border-line" />
           {product.badge && (
             <div className="absolute left-3 top-3">
               <Badge badge={product.badge} />
@@ -69,24 +73,22 @@ export default function ProductPage() {
               {product.available ? 'В наличии' : 'Нет в наличии'}
             </span>
           </div>
-          <p className="mt-1 text-xs text-silver">Демонстрационная цена.</p>
-
           <p className="mt-5 text-silver">{product.description}</p>
 
-          {product.regions && (
+          {variants.length > 1 && (
             <div className="mt-6 max-w-xs">
-              <label htmlFor="region" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-silver">
-                Регион карты
+              <label htmlFor="variant" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-silver">
+                Регион и номинал
               </label>
               <select
-                id="region"
-                value={region}
-                onChange={(e) => setChosenRegion(e.target.value)}
+                id="variant"
+                value={product.id}
+                onChange={(e) => setVariantId(e.target.value)}
                 className={inputClass}
               >
-                {product.regions.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
+                {variants.map((variant) => (
+                  <option key={variant.id} value={variant.id}>
+                    {[variant.country, variant.denomination !== null && variant.denomination !== undefined ? `${variant.denomination} ${variant.denominationCurrency ?? ''}` : ''].filter(Boolean).join(' · ')} — {variant.price} RUB
                   </option>
                 ))}
               </select>
@@ -98,13 +100,13 @@ export default function ProductPage() {
               productId={product.id}
               title={product.title}
               available={product.available}
-              region={region}
+              region={product.country}
               className="flex-1 sm:flex-none sm:px-10"
             />
             <FavoriteButton productId={product.id} title={product.title} className="border border-line" />
           </div>
           <p className="mt-3 text-sm text-silver">
-            Оплата пока не подключена: оформление создаёт только демонстрационный заказ.
+            Оплата подтверждается администратором вручную. Цифровой товар появится в личном кабинете после оплаты и выдачи.
           </p>
 
           <dl className="mt-8 divide-y divide-line border-y border-line">
@@ -114,7 +116,7 @@ export default function ProductPage() {
                 <dt className="font-semibold text-white">Платформа и регион</dt>
                 <dd className="mt-1 text-sm text-silver">
                   {product.platform}
-                  {product.regions ? `. Доступные регионы: ${product.regions.join(', ')}.` : '. Регион уточняйте перед покупкой.'}
+                  {product.country ? ` · Регион: ${product.country}` : ''}{product.denomination !== null && product.denomination !== undefined ? ` · Номинал: ${product.denomination} ${product.denominationCurrency ?? ''}` : ''}
                 </dd>
               </div>
             </div>

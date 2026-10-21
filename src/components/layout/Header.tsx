@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { Heart, Menu, ShoppingCart } from 'lucide-react'
+import { CircleUserRound, Heart, Menu, ShoppingCart } from 'lucide-react'
 import { useCart } from '../../context/CartContext'
 import { useFavorites } from '../../context/FavoritesContext'
 import { Logo } from '../common/Logo'
@@ -61,6 +61,7 @@ export function Header() {
                 <Heart className="size-6" aria-hidden="true" />
               </CounterIcon>
             </Link>
+            <Link to="/account" className={iconLink} aria-label="Личный кабинет"><CircleUserRound className="size-6" aria-hidden="true" /></Link>
             <Link
               to="/cart"
               className={iconLink}

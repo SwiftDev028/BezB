@@ -8,14 +8,15 @@ function fromDb(row: DbOrder): Order {
   const meta = row.admin_metadata ?? {}
   const items = (row.order_items ?? []).map((i: DbOrder) => {
     const [title, platform = ''] = String(i.product_name).split(' · ')
-    return { productId: i.product_id, title, platform: i.platform ?? platform, unitPrice: Number(i.unit_price), quantity: Number(i.quantity), ...(i.region ? { region: i.region } : {}) }
+    return { id: i.id, productId: i.product_id, title, platform: i.platform ?? platform, unitPrice: Number(i.unit_price), quantity: Number(i.quantity), ...(i.region ? { region: i.region } : {}), denomination: i.denomination === null ? null : Number(i.denomination), denominationCurrency: i.denomination_currency ?? null }
   })
   const status = row.status
-  const fulfillmentStatus = status === 'confirmed' || status === 'processing' ? 'processing' : status === 'shipped' || status === 'completed' ? 'delivered' : status === 'cancelled' ? 'cancelled' : 'new'
+  const fulfillmentStatus = row.fulfillment_status ?? (status === 'confirmed' || status === 'processing' ? 'processing' : status === 'shipped' || status === 'completed' ? 'delivered' : status === 'cancelled' ? 'cancelled' : 'new')
   return {
     id: row.id, number: String(row.order_number), version: Number(row.version ?? 1), createdAt: row.created_at,
     updatedAt: row.updated_at, customer: { name: row.customer_name, email: row.customer_email ?? '', phone: row.customer_phone ?? '', address: row.delivery_address ?? '', comment: row.customer_comment ?? '' },
-    consentAt: row.consent_at ?? undefined, items, total: Number(row.total_amount), currency: 'RUB', paymentStatus: 'unpaid', fulfillmentStatus,
+    consentAt: row.consent_at ?? undefined, deliveryEmailSentAt: row.delivery_email_sent_at ?? undefined, deliveryEmailSentBy: row.delivery_email_sent_by ?? undefined,
+    items, total: Number(row.total_amount), currency: 'RUB', paymentStatus: row.payment_status ?? 'unpaid', fulfillmentStatus,
     delivery: { note: meta.delivery?.note ?? '', updatedAt: meta.delivery?.updatedAt }, history: Array.isArray(meta.history) && meta.history.length ? meta.history : [{ id: `${row.id}-created`, type: 'created', at: row.created_at, actor: 'Покупатель', text: 'Заказ оформлен на сайте. Оплата не подключена.' }], isDemo: false, source: 'checkout',
   }
 }

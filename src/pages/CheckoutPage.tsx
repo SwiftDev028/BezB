@@ -6,7 +6,6 @@ import { btnPrimary, btnSecondary, inputClass } from '../components/common/ui'
 import { CheckoutResult } from '../components/product/CheckoutResult'
 import { OrderSummary } from '../components/product/OrderSummary'
 import { useCart } from '../context/CartContext'
-import { getProduct } from '../data/products'
 import { placeCheckoutOrder } from '../services/orders/placeCheckoutOrder'
 import type { Order } from '../types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -14,10 +13,14 @@ import { formatPrice } from '../utils/format'
 import { lineKey } from '../utils/cart'
 import { validateCheckout, type CheckoutErrors } from '../utils/checkout'
 import { supabaseConfigured } from '../services/supabase'
+import { useAuth } from '../context/AuthContext'
+import { useCatalog } from '../context/CatalogContext'
 
 export default function CheckoutPage() {
   useDocumentTitle('Оформление заказа')
   const { items, clear } = useCart()
+  const { user, loading: authLoading } = useAuth()
+  const { getProduct } = useCatalog()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -32,12 +35,18 @@ export default function CheckoutPage() {
   // Синхронная защита от повторной отправки (двойной клик, повторное нажатие Enter до перерисовки)
   const submitting = useRef(false)
 
+  useEffect(() => { if (user?.email) setEmail(user.email) }, [user?.email])
+
   // После создания заказа переводим фокус на заголовок результата — для пользователей клавиатуры и скринридеров
   useEffect(() => {
     if (placed) document.getElementById('checkout-result-title')?.focus()
   }, [placed])
 
   if (placed) return <CheckoutResult order={placed} />
+
+  if (authLoading) return <div className="container-x py-12" role="status">Проверяем аккаунт…</div>
+
+  if (!user) return <div className="container-x py-12"><h1 className="text-4xl">Войдите для безопасного оформления</h1><p className="mt-3 max-w-xl text-silver">Заказы и выданные коды доступны только владельцу подтверждённого аккаунта. Гостевые заказы нельзя безопасно связать с личным кабинетом.</p><Link to="/account" className={`${btnPrimary} mt-5`}>Войти или создать аккаунт</Link><Link to="/cart" className={`${btnSecondary} ml-3 mt-5`}>Вернуться в корзину</Link></div>
 
   if (items.length === 0) {
     return (
@@ -68,7 +77,7 @@ export default function CheckoutPage() {
     setBusy(true)
     try {
       // Сервер проверяет активность вариантов и сам рассчитывает цены и итоговую сумму.
-      const result = await placeCheckoutOrder(items, { name, email, phone, address, comment, consent: agree })
+      const result = await placeCheckoutOrder(items, { name, email, phone, address, comment, consent: agree }, undefined, getProduct)
       if (!result.ok) {
         setSubmitError(result.error)
         return
@@ -129,6 +138,7 @@ export default function CheckoutPage() {
               type="email"
               autoComplete="email"
               value={email}
+              readOnly
               onChange={(e) => setEmail(e.target.value)}
               aria-invalid={Boolean(errors.email)}
               aria-describedby={errors.email ? 'co-email-error' : undefined}

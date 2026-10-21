@@ -18,12 +18,15 @@ export type OrderEventType =
 
 /** Снимок позиции на момент заказа: цена и название не меняются, даже если каталог изменится. */
 export interface OrderItem {
+  id?: string
   productId: string
   title: string
   platform: string
   unitPrice: number
   quantity: number
   region?: string
+  denomination?: number | null
+  denominationCurrency?: string | null
 }
 
 export interface OrderEvent {
@@ -52,6 +55,8 @@ export interface Order {
   updatedAt: string
   customer: { name: string; email: string; phone?: string; address?: string; comment?: string }
   consentAt?: string
+  deliveryEmailSentAt?: string
+  deliveryEmailSentBy?: string
   items: OrderItem[]
   total: number
   currency: Currency

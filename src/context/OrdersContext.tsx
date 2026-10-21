@@ -14,6 +14,7 @@ interface OrdersContextValue {
   update: (id: string, change: (order: Order, nowIso: string) => Result<Order>) => Promise<Result<Order>>
   create: (input: NewOrderInput) => Promise<Result<Order>>
   resetDemo: () => Promise<void>
+  refresh: () => Promise<void>
 }
 
 const OrdersContext = createContext<OrdersContextValue | null>(null)
@@ -28,23 +29,13 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const latest = useRef<Order[]>([])
   latest.current = orders
 
-  useEffect(() => {
-    let cancelled = false
-    ordersRepository
-      .list()
-      .then((list) => {
-        if (!cancelled) setOrders(list)
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setLoadError(e instanceof Error ? e.message : 'Не удалось загрузить заказы.')
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
+  const refresh = useCallback(async () => {
+    setLoading(true)
+    try { setOrders(await ordersRepository.list()); setLoadError(null) }
+    catch (e) { setLoadError(e instanceof Error ? e.message : 'Не удалось загрузить заказы.') }
+    finally { setLoading(false) }
   }, [])
+  useEffect(() => { void refresh() }, [refresh])
 
   // Заказ мог быть оформлен в другой вкладке этого же браузера — подхватываем изменение хранилища
   useEffect(() => {
@@ -90,8 +81,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ orders, loading, loadError, storageKind: ordersRepository.kind, update, create, resetDemo }),
-    [orders, loading, loadError, update, create, resetDemo],
+    () => ({ orders, loading, loadError, storageKind: ordersRepository.kind, update, create, resetDemo, refresh }),
+    [orders, loading, loadError, update, create, resetDemo, refresh],
   )
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }

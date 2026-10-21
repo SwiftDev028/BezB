@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
-import { products } from '../../data/products'
+import { useCatalog } from '../../context/CatalogContext'
 import { suggest } from '../../utils/catalog'
 import { formatPrice } from '../../utils/format'
 
@@ -12,6 +12,7 @@ interface SearchBoxProps {
 
 export function SearchBox({ className = '', onNavigate }: SearchBoxProps) {
   const navigate = useNavigate()
+  const { products } = useCatalog()
   const uid = useId()
   const listId = `${uid}-list`
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -19,7 +20,7 @@ export function SearchBox({ className = '', onNavigate }: SearchBoxProps) {
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
 
-  const items = useMemo(() => suggest(products, query), [query])
+  const items = useMemo(() => suggest(products, query), [products, query])
   const showList = open && items.length > 0
 
   useEffect(() => {

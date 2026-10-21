@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react'
 import { parseIds, toggleId } from '../utils/cart'
-import { getProduct } from '../data/products'
+import { useCatalog } from './CatalogContext'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 
 interface FavoritesContextValue {
@@ -12,6 +12,7 @@ interface FavoritesContextValue {
 const FavoritesContext = createContext<FavoritesContextValue | null>(null)
 
 export function FavoritesProvider({ children }: { children: ReactNode }) {
+  const { getProduct } = useCatalog()
   const [stored, update] = useLocalStorage<string[]>('bezb:favorites', [], parseIds)
   const ids = useMemo(() => stored.filter((id) => getProduct(id)), [stored])
 

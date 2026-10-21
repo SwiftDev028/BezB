@@ -21,11 +21,12 @@ interface ProductArtProps {
   category: CategoryId
   type: ProductType
   label?: string
+  imageUrl?: string | null
   className?: string
 }
 
 /** Локальная заглушка вместо фотографии товара — заменяется реальным изображением позже. */
-export function ProductArt({ category, type, label, className = '' }: ProductArtProps) {
+export function ProductArt({ category, type, label, imageUrl, className = '' }: ProductArtProps) {
   const accent = categoryById[category].accent
   const Icon = categoryIcon[category]
   const TypeIcon = typeIcon[type]
@@ -34,6 +35,8 @@ export function ProductArt({ category, type, label, className = '' }: ProductArt
       className={`texture-hatch relative aspect-[4/3] w-full overflow-hidden bg-graphite ${className}`}
       aria-hidden="true"
     >
+      {imageUrl && <img src={imageUrl} alt="" loading="lazy" className="absolute inset-0 size-full object-cover" />}
+      {imageUrl && <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-transparent to-transparent" />}
       <div
         className="absolute -right-6 -top-8 h-[140%] w-1/2 -skew-x-[18deg] opacity-90"
         style={{ background: `linear-gradient(180deg, ${accent}, transparent 85%)`, opacity: 0.22 }}

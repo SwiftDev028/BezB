@@ -4,13 +4,14 @@ import { EmptyState } from '../components/common/EmptyState'
 import { btnPrimary } from '../components/common/ui'
 import { ProductGrid } from '../components/product/ProductGrid'
 import { useFavorites } from '../context/FavoritesContext'
-import { getProduct } from '../data/products'
+import { useCatalog } from '../context/CatalogContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import type { Product } from '../types'
 
 export default function FavoritesPage() {
   useDocumentTitle('Избранное')
   const { ids } = useFavorites()
+  const { getProduct } = useCatalog()
   const items = ids.map(getProduct).filter((p): p is Product => Boolean(p))
 
   return (

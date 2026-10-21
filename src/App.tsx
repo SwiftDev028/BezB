@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
 import HomePage from './pages/HomePage'
+import { OrdersProvider } from './context/OrdersContext'
 
 // Главная грузится сразу, остальные страницы — по требованию (меньше стартовый бандл)
 const CatalogPage = lazy(() => import('./pages/CatalogPage'))
@@ -22,6 +23,11 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout'))
 const AdminOrdersPage = lazy(() => import('./pages/admin/AdminOrdersPage'))
 const AdminOrderDetailPage = lazy(() => import('./pages/admin/AdminOrderDetailPage'))
+const AccountPage = lazy(() => import('./pages/AccountPage'))
+const MyOrdersPage = lazy(() => import('./pages/MyOrdersPage'))
+const AdminCatalogPage = lazy(() => import('./pages/admin/AdminCatalogPage'))
+const AdminSuppliersPage = lazy(() => import('./pages/admin/AdminSuppliersPage'))
+const AdminInventoryPage = lazy(() => import('./pages/admin/AdminInventoryPage'))
 
 function PageFallback() {
   return (
@@ -51,10 +57,15 @@ export default function App() {
           <Route path="terms" element={<TermsPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="contacts" element={<ContactsPage />} />
+          <Route path="account" element={<AccountPage />} />
+          <Route path="account/orders" element={<MyOrdersPage />} />
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="orders" replace />} />
-            <Route path="orders" element={<AdminOrdersPage />} />
-            <Route path="orders/:id" element={<AdminOrderDetailPage />} />
+            <Route path="orders" element={<OrdersProvider><AdminOrdersPage /></OrdersProvider>} />
+            <Route path="orders/:id" element={<OrdersProvider><AdminOrderDetailPage /></OrdersProvider>} />
+            <Route path="catalog" element={<AdminCatalogPage />} />
+            <Route path="suppliers" element={<AdminSuppliersPage />} />
+            <Route path="inventory" element={<AdminInventoryPage />} />
           </Route>
           <Route path="404" element={<NotFoundPage />} />
           <Route path="*" element={<NotFoundPage />} />

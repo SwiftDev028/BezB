@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Link, Outlet } from 'react-router-dom'
 import { LogOut, TriangleAlert } from 'lucide-react'
-import { OrdersProvider } from '../../context/OrdersContext'
 import { requireSupabase, supabaseConfigured } from '../../services/supabase'
 import { btnPrimary, inputClass } from '../common/ui'
 
@@ -20,6 +19,7 @@ export default function AdminLayout() {
       const { data, error: membershipError } = await db.rpc('is_admin')
       if (membershipError) throw membershipError
       setAllowed(data === true)
+      setError(data === true ? '' : 'Вход выполнен, но функция is_admin() не подтвердила членство в admin_users. Проверьте UUID аккаунта и SQL-функцию.')
     } catch (e) {
       setAllowed(false)
       setError(e instanceof Error ? e.message : 'Не удалось проверить доступ.')
@@ -53,5 +53,5 @@ export default function AdminLayout() {
   if (loading) return <div className="container-x py-12" role="status">Проверяем доступ…</div>
   if (!allowed) return <div className="container-x py-12"><form onSubmit={signIn} className="mx-auto max-w-md space-y-4 border border-line bg-coal p-6"><h1 className="text-3xl">Вход администратора</h1><p className="text-sm text-silver">Доступ проверяется сессией Supabase Auth и функцией, проверяющей admin_users.</p><label className="block text-sm">Email<input type="email" required autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} className={inputClass}/></label><label className="block text-sm">Пароль<input type="password" required autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className={inputClass}/></label>{error && <p role="alert" className="text-red-hot">{error}</p>}<button className={btnPrimary} disabled={loading}>Войти</button></form></div>
 
-  return <OrdersProvider><div className="container-x py-8 sm:py-12"><div className="mb-4 flex justify-end"><button type="button" onClick={signOut} className="inline-flex min-h-11 items-center gap-2 text-sm text-silver"><LogOut size={16}/>Выйти</button></div><div role="note" className="mb-8 flex gap-3 border border-red bg-red/10 p-4 text-sm"><TriangleAlert className="mt-0.5 size-5 shrink-0 text-red-hot" aria-hidden="true"/><div><p className="font-semibold text-white">Администрирование заказов</p><p className="text-silver">Доступ ограничен членами admin_users. Оплата не подключена. Не записывайте коды и пароли в заметки заказа.</p></div></div><Outlet/></div></OrdersProvider>
+  return <div className="container-x py-8 sm:py-12"><div className="mb-4 flex justify-end"><button type="button" onClick={signOut} className="inline-flex min-h-11 items-center gap-2 text-sm text-silver"><LogOut size={16}/>Выйти</button></div><nav aria-label="Разделы админ-панели" className="mb-5 flex flex-wrap gap-2 border-b border-line pb-3 text-sm">{[['/admin/orders','Заказы'],['/admin/catalog','Каталог'],['/admin/suppliers','Поставщики'],['/admin/inventory','Коды']].map(([to,label])=><Link key={to} to={to} className="min-h-10 px-3 py-2 text-silver hover:bg-steel hover:text-white">{label}</Link>)}</nav><div role="note" className="mb-8 flex gap-3 border border-red bg-red/10 p-4 text-sm"><TriangleAlert className="mt-0.5 size-5 shrink-0 text-red-hot" aria-hidden="true"/><div><p className="font-semibold text-white">Администрирование BezB</p><p className="text-silver">Доступ ограничен членами admin_users. Оплата подтверждается вручную. Не записывайте коды и пароли в заметки.</p></div></div><Outlet/></div>
 }

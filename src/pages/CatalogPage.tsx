@@ -7,7 +7,7 @@ export default function CatalogPage() {
     <div className="container-x py-8 sm:py-12">
       <h1 className="mb-2 text-4xl sm:text-5xl">Каталог</h1>
       <p className="mb-6 max-w-2xl text-silver">
-        Все товары в одном месте. Цены и наличие демонстрационные.
+        Публикуются только подтверждённые товары с актуальными ценами и наличием.
       </p>
       <CatalogBrowser showSearch />
     </div>

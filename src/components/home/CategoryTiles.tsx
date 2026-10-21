@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import { Apple, ArrowUpRight, Bot, Gamepad2, Joystick, MonitorPlay } from 'lucide-react'
 import { categories } from '../../data/categories'
-import { products } from '../../data/products'
+import { useCatalog } from '../../context/CatalogContext'
 
 const icons = { apple: Apple, xbox: Gamepad2, playstation: Joystick, steam: MonitorPlay, ai: Bot } as const
 
 export function CategoryTiles() {
+  const { products } = useCatalog()
   return (
     <ul className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
       {categories.map((c, i) => {
