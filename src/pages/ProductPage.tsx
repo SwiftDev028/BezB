@@ -19,9 +19,9 @@ export default function ProductPage() {
   const { slug = '' } = useParams()
   const { products, getProduct, loading } = useCatalog()
   const initialProduct = getProduct(slug)
-  const [variantId, setVariantId] = useState(slug)
-  useEffect(() => setVariantId(slug), [slug])
-  const product = getProduct(variantId) ?? initialProduct
+  const [variantSlug, setVariantSlug] = useState(slug)
+  useEffect(() => setVariantSlug(slug), [slug])
+  const product = getProduct(variantSlug) ?? initialProduct
   useDocumentTitle(product?.title)
 
   if (loading && !product) return <div role="status" className="container-x py-12 text-silver">Загружаем товар…</div>
@@ -82,12 +82,12 @@ export default function ProductPage() {
               </label>
               <select
                 id="variant"
-                value={product.id}
-                onChange={(e) => setVariantId(e.target.value)}
+                value={product.slug}
+                onChange={(e) => setVariantSlug(e.target.value)}
                 className={inputClass}
               >
                 {variants.map((variant) => (
-                  <option key={variant.id} value={variant.id}>
+                  <option key={variant.slug} value={variant.slug}>
                     {[variant.country, variant.denomination !== null && variant.denomination !== undefined ? `${variant.denomination} ${variant.denominationCurrency ?? ''}` : ''].filter(Boolean).join(' · ')} — {variant.price} RUB
                   </option>
                 ))}

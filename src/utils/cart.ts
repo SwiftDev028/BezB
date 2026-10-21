@@ -32,9 +32,9 @@ export function cartCount(items: CartItem[]): number {
   return items.reduce((sum, i) => sum + i.quantity, 0)
 }
 
-export function cartTotal(items: CartItem[], lookup: (id: string) => Product | undefined): number {
+export function cartTotal(items: CartItem[], lookup: (id: string, region?: string) => Product | undefined): number {
   return items.reduce((sum, i) => {
-    const p = lookup(i.productId)
+    const p = lookup(i.productId, i.region ?? '')
     return p ? sum + p.price * i.quantity : sum
   }, 0)
 }

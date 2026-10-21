@@ -9,6 +9,33 @@ import type { Product } from '../../types'
 /** Очередь: «прочитать список → назначить номер → сохранить» выполняется строго по одному оформлению. */
 let queue: Promise<unknown> = Promise.resolve()
 
+export function buildCheckoutRpcItems(
+  cart: CartItem[],
+  lookup: (id: string, region?: string) => Product | undefined,
+) {
+  return cart.map((item) => ({
+    product_id: item.productId,
+    quantity: item.quantity,
+    region: item.region ?? null,
+    expected_price: lookup(item.productId, item.region ?? '')?.price ?? null,
+  }))
+}
+
+export function parseCheckoutRpcResponse(
+  data: unknown,
+  error: { message?: string } | null,
+): Result<Record<string, unknown>> {
+  if (error) return { ok: false, error: error.message || 'Не удалось отправить заказ.' }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { ok: false, error: 'Сервер не вернул подтверждение создания заказа.' }
+  }
+  const row = data as Record<string, unknown>
+  if (!row.id || !row.order_number || !Array.isArray(row.items)) {
+    return { ok: false, error: 'Сервер не вернул подтверждение создания заказа.' }
+  }
+  return { ok: true, value: row }
+}
+
 /**
  * Оформление заказа покупателем. Работает через тот же репозиторий, что и админка, поэтому при подключении
  * С Supabase заказ создаётся RPC, которая проверяет каталог, владельца аккаунта и назначает номер/цены на сервере.
@@ -18,9 +45,10 @@ export function placeCheckoutOrder(
   cart: CartItem[],
   customer: { name: string; email: string; phone?: string; address?: string; comment?: string; consent?: boolean },
   repo: OrdersRepository = ordersRepository,
-  lookup: (id: string) => Product | undefined = getProduct,
+  lookup: (id: string, region?: string) => Product | undefined = getProduct,
+  customerUserId?: string,
 ): Promise<Result<Order>> {
-  if (supabaseConfigured) return placeRemote(cart, { ...customer, consent: Boolean(customer.consent) }, lookup)
+  if (supabaseConfigured) return placeRemote(cart, { ...customer, consent: Boolean(customer.consent) }, lookup, customerUserId)
   const run = queue.then(() => place(cart, customer, repo, lookup))
   queue = run.catch(() => undefined)
   return run
@@ -38,17 +66,25 @@ function checkoutRequestKey(cart: CartItem[], email: string): { fingerprint: str
   } catch { return { fingerprint, key: crypto.randomUUID() } }
 }
 
-async function placeRemote(cart: CartItem[], customer: { name: string; email: string; phone?: string; address?: string; comment?: string; consent: boolean }, lookup: (id: string) => Product | undefined): Promise<Result<Order>> {
+async function placeRemote(cart: CartItem[], customer: { name: string; email: string; phone?: string; address?: string; comment?: string; consent: boolean }, lookup: (id: string, region?: string) => Product | undefined, customerUserId?: string): Promise<Result<Order>> {
   try {
-    const request = checkoutRequestKey(cart, customer.email)
-    const { data, error } = await requireSupabase().rpc('place_buyer_order', {
-      p_customer_name: customer.name, p_customer_phone: customer.phone ?? '', p_customer_email: customer.email,
-      p_delivery_address: customer.address ?? '', p_customer_comment: customer.comment ?? '', p_consent: customer.consent,
-      p_items: cart.map((i) => ({ product_id: i.productId, quantity: i.quantity, region: i.region ?? null, expected_price: lookup(i.productId)?.price ?? null })),
-      p_idempotency_key: request.key,
-    })
-    if (error) throw error
-    const row = data as Record<string, any>
+    const items = buildCheckoutRpcItems(cart, lookup)
+    const client = requireSupabase()
+    const request = customerUserId ? checkoutRequestKey(cart, customer.email) : null
+    const { data, error } = customerUserId
+      ? await client.rpc('place_buyer_order', {
+          p_customer_name: customer.name, p_customer_phone: customer.phone ?? '', p_customer_email: customer.email,
+          p_delivery_address: customer.address ?? '', p_customer_comment: customer.comment ?? '', p_consent: customer.consent,
+          p_items: items, p_idempotency_key: request!.key,
+        })
+      : await client.rpc('place_public_order', {
+          p_customer_name: customer.name, p_customer_phone: customer.phone ?? '', p_customer_email: customer.email,
+          p_delivery_address: customer.address ?? '', p_customer_comment: customer.comment ?? '', p_consent: customer.consent,
+          p_items: items,
+        })
+    const response = parseCheckoutRpcResponse(data, error)
+    if (!response.ok) return response
+    const row = response.value as Record<string, any>
     const order: Order = {
       id: row.id, number: row.order_number, version: 1, createdAt: row.created_at, updatedAt: row.created_at,
       customer: { name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone, address: customer.address, comment: customer.comment },
@@ -56,7 +92,7 @@ async function placeRemote(cart: CartItem[], customer: { name: string; email: st
       total: Number(row.total_amount), currency: 'RUB', paymentStatus: 'unpaid', fulfillmentStatus: 'new', delivery: { note: '' },
       history: [{ id: `${row.id}-created`, type: 'created', at: row.created_at, actor: 'Покупатель', text: 'Заказ оформлен на сайте. Оплата не подключена.' }], isDemo: false, source: 'checkout',
     }
-    try { sessionStorage.removeItem('bezb:checkout-request') } catch { /* session storage is optional */ }
+    if (customerUserId) try { sessionStorage.removeItem('bezb:checkout-request') } catch { /* session storage is optional */ }
     return { ok: true, value: order }
   } catch (e) { return { ok: false, error: e instanceof Error ? e.message : 'Не удалось отправить заказ.' } }
 }
@@ -65,7 +101,7 @@ async function place(
   cart: CartItem[],
   customer: { name: string; email: string },
   repo: OrdersRepository,
-  lookup: (id: string) => Product | undefined,
+  lookup: (id: string, region?: string) => Product | undefined,
 ): Promise<Result<Order>> {
   try {
     // Список читается непосредственно перед сохранением. Очередь выше защищает от гонки внутри вкладки;

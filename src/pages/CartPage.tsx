@@ -30,7 +30,7 @@ export default function CartPage() {
           <div>
             <ul className="divide-y divide-line border border-line bg-coal">
               {items.map((item) => {
-                const product = getProduct(item.productId)
+                const product = getProduct(item.productId, item.region ?? '')
                 if (!product) return null
                 const key = lineKey(item)
                 return (

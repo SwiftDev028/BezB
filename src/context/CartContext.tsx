@@ -21,7 +21,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, update] = useLocalStorage<CartItem[]>('bezb:cart', [], parseCartItems)
 
   // Позиции, которых больше нет в каталоге, не учитываем и не показываем
-  const validItems = useMemo(() => items.filter((i) => getProduct(i.productId)), [items])
+  const validItems = useMemo(() => items.filter((i) => getProduct(i.productId, i.region ?? '')), [items, getProduct])
 
   const add = useCallback(
     (productId: string, region?: string) => update((prev) => addItem(prev, productId, region)),
@@ -44,7 +44,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       changeQuantity,
       clear,
     }),
-    [validItems, add, remove, changeQuantity, clear],
+    [validItems, getProduct, add, remove, changeQuantity, clear],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>

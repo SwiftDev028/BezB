@@ -82,14 +82,14 @@ export interface NewOrderInput {
 export function createOrder(
   input: NewOrderInput,
   existing: Order[],
-  lookup: (id: string) => Product | undefined,
+  lookup: (id: string, region?: string) => Product | undefined,
   now: string,
   note = 'Заказ создан вручную (демо)',
   options: { paymentStatus?: PaymentStatus; source?: OrderSource } = {},
 ): Result<Order> {
   const items: OrderItem[] = []
   for (const line of input.lines) {
-    const p = lookup(line.productId)
+    const p = lookup(line.productId, line.region ?? '')
     if (!p) return fail(`Товар не найден: ${line.productId}`)
     if (!Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 10)
       return fail('Количество должно быть целым числом от 1 до 10.')

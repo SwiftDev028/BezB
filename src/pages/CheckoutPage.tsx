@@ -46,8 +46,6 @@ export default function CheckoutPage() {
 
   if (authLoading) return <div className="container-x py-12" role="status">Проверяем аккаунт…</div>
 
-  if (!user) return <div className="container-x py-12"><h1 className="text-4xl">Войдите для безопасного оформления</h1><p className="mt-3 max-w-xl text-silver">Заказы и выданные коды доступны только владельцу подтверждённого аккаунта. Гостевые заказы нельзя безопасно связать с личным кабинетом.</p><Link to="/account" className={`${btnPrimary} mt-5`}>Войти или создать аккаунт</Link><Link to="/cart" className={`${btnSecondary} ml-3 mt-5`}>Вернуться в корзину</Link></div>
-
   if (items.length === 0) {
     return (
       <div className="container-x py-8 sm:py-12">
@@ -77,7 +75,8 @@ export default function CheckoutPage() {
     setBusy(true)
     try {
       // Сервер проверяет активность вариантов и сам рассчитывает цены и итоговую сумму.
-      const result = await placeCheckoutOrder(items, { name, email, phone, address, comment, consent: agree }, undefined, getProduct)
+      const linkedUserId = user?.email_confirmed_at ? user.id : undefined
+      const result = await placeCheckoutOrder(items, { name, email, phone, address, comment, consent: agree }, undefined, getProduct, linkedUserId)
       if (!result.ok) {
         setSubmitError(result.error)
         return
@@ -109,6 +108,8 @@ export default function CheckoutPage() {
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
         <form ref={formRef} onSubmit={onSubmit} noValidate className="space-y-5 border border-line bg-coal p-5 sm:p-6">
           <h2 className="text-2xl">Контактные данные</h2>
+          {!user && <p className="text-sm text-silver">Заказ можно оформить без регистрации. Гостевой заказ не появится в «Моих заказах»; после ручного подтверждения оплаты магазин свяжется с вами по указанному email.</p>}
+          {user && !user.email_confirmed_at && <p className="text-sm text-silver">Подтверждите email, чтобы привязать заказ к аккаунту, или оформите его как гостевой.</p>}
 
           <div>
             <label htmlFor="co-name" className="mb-1.5 block text-sm font-semibold">Имя</label>
@@ -138,7 +139,7 @@ export default function CheckoutPage() {
               type="email"
               autoComplete="email"
               value={email}
-              readOnly
+              readOnly={Boolean(user?.email_confirmed_at)}
               onChange={(e) => setEmail(e.target.value)}
               aria-invalid={Boolean(errors.email)}
               aria-describedby={errors.email ? 'co-email-error' : undefined}
@@ -210,7 +211,7 @@ export default function CheckoutPage() {
         <aside aria-label="Состав заказа" className="space-y-4">
           <ul className="divide-y divide-line border border-line bg-coal">
             {items.map((item) => {
-              const p = getProduct(item.productId)
+              const p = getProduct(item.productId, item.region ?? '')
               if (!p) return null
               return (
                 <li key={lineKey(item)} className="flex justify-between gap-3 p-3 text-sm">

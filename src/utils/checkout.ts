@@ -38,7 +38,7 @@ export function buildCheckoutOrder(
   cart: CartItem[],
   customer: { name: string; email: string },
   existing: Order[],
-  lookup: (id: string) => Product | undefined,
+  lookup: (id: string, region?: string) => Product | undefined,
   now: string,
 ): Result<Order> {
   if (cart.length === 0) return { ok: false, error: 'Корзина пуста.' }
@@ -47,7 +47,7 @@ export function buildCheckoutOrder(
   if (checked.name || checked.email) return { ok: false, error: checked.name ?? checked.email ?? 'Проверьте данные.' }
 
   for (const item of cart) {
-    const p = lookup(item.productId)
+    const p = lookup(item.productId, item.region ?? '')
     if (!p) return { ok: false, error: 'Один из товаров больше не продаётся. Удалите его из корзины.' }
     if (!p.available) return { ok: false, error: `Товара «${p.title}» нет в наличии. Удалите его из корзины.` }
     if (p.regions) {

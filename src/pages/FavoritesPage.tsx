@@ -12,7 +12,7 @@ export default function FavoritesPage() {
   useDocumentTitle('Избранное')
   const { ids } = useFavorites()
   const { getProduct } = useCatalog()
-  const items = ids.map(getProduct).filter((p): p is Product => Boolean(p))
+  const items = ids.map((id) => getProduct(id)).filter((p): p is Product => Boolean(p))
 
   return (
     <div className="container-x py-8 sm:py-12">

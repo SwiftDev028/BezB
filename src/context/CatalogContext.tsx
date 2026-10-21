@@ -2,10 +2,10 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { Product, CategoryId, ProductType } from '../types'
 import { requireSupabase, supabaseConfigured } from '../services/supabase'
 
-interface CatalogValue { products: Product[]; loading: boolean; error: string | null; getProduct: (id: string) => Product | undefined; refresh: () => Promise<void> }
+interface CatalogValue { products: Product[]; loading: boolean; error: string | null; getProduct: (id: string, region?: string) => Product | undefined; refresh: () => Promise<void> }
 const CatalogContext = createContext<CatalogValue | null>(null)
 
-function mapRows(rows: Record<string, any>[]): Product[] {
+export function mapCatalogRows(rows: Record<string, any>[]): Product[] {
   const mapped = rows.map((row): Product => ({
     id: row.product_id, slug: row.slug, title: row.title, category: row.category as CategoryId,
     platform: row.platform || row.brand, type: row.product_type as ProductType, price: Number(row.unit_price),
@@ -26,6 +26,18 @@ function mapRows(rows: Record<string, any>[]): Product[] {
   return mapped.map((product) => ({ ...product, regions: product.groupId ? regionsByGroup.get(product.groupId) : undefined }))
 }
 
+/** Resolve a catalog row by its variant ID/slug and, when supplied, exact region. */
+export function findCatalogProduct(products: Product[], id: string, region?: string): Product | undefined {
+  const matches = products.filter((product) => product.id === id || product.slug === id)
+  if (region !== undefined) {
+    const normalizedRegion = region.trim()
+    return matches.find((product) => (product.country ?? '') === normalizedRegion)
+  }
+  const slugMatch = matches.find((product) => product.slug === id)
+  if (slugMatch) return slugMatch
+  return matches[0]
+}
+
 export function CatalogProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,13 +48,12 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error: queryError } = await requireSupabase().from('catalog_public').select('*').order('title')
       if (queryError) throw queryError
-      setProducts(mapRows(data ?? [])); setError(null)
+      setProducts(mapCatalogRows(data ?? [])); setError(null)
     } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось загрузить каталог.') }
     finally { setLoading(false) }
   }
   useEffect(() => { let active = true; void refresh().finally(() => { if (!active) return }); return () => { active = false } }, [])
-  const byId = useMemo(() => new Map(products.flatMap((p) => [[p.id, p], [p.slug, p]] as const)), [products])
-  const value = useMemo<CatalogValue>(() => ({ products, loading, error, getProduct: (id) => byId.get(id), refresh }), [products, loading, error, byId])
+  const value = useMemo<CatalogValue>(() => ({ products, loading, error, getProduct: (id, region) => findCatalogProduct(products, id, region), refresh }), [products, loading, error])
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>
 }
 

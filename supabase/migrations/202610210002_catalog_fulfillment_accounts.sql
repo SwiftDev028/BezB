@@ -43,6 +43,15 @@ $$;
 drop trigger if exists products_sync_active on public.products;
 create trigger products_sync_active before insert or update of publication_status, availability on public.products
 for each row execute function public.sync_product_active();
+-- Legacy rows have no verified publication metadata after these additive
+-- columns are introduced. Fail closed: they remain hidden until an admin
+-- explicitly marks a real variant published and in stock.
+update public.products
+set active = (publication_status = 'published' and availability = 'in_stock')
+where active is distinct from (publication_status = 'published' and availability = 'in_stock');
+alter table public.products drop constraint if exists products_active_publication_check;
+alter table public.products add constraint products_active_publication_check
+  check (active = (publication_status = 'published' and availability = 'in_stock'));
 
 drop view if exists public.catalog_public;
 create view public.catalog_public with (security_barrier = true) as
@@ -181,6 +190,38 @@ create policy "Customers view own order items" on public.order_items for select 
   exists (select 1 from public.orders o where o.id = order_items.order_id and o.customer_user_id = (select auth.uid()))
 );
 
+-- Restrictive policies compose with any legacy permissive policies: an old
+-- broad policy cannot accidentally expose other buyers' orders or secrets.
+drop policy if exists "BezB orders select boundary" on public.orders;
+create policy "BezB orders select boundary" on public.orders as restrictive for select to authenticated
+  using (public.is_admin() or customer_user_id = (select auth.uid()));
+drop policy if exists "BezB orders update boundary" on public.orders;
+create policy "BezB orders update boundary" on public.orders as restrictive for update to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "BezB order items select boundary" on public.order_items;
+create policy "BezB order items select boundary" on public.order_items as restrictive for select to authenticated
+  using (public.is_admin() or exists (
+    select 1 from public.orders o where o.id = order_items.order_id and o.customer_user_id = (select auth.uid())
+  ));
+drop policy if exists "BezB products admin boundary" on public.products;
+create policy "BezB products admin boundary" on public.products as restrictive for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "BezB suppliers admin boundary" on public.suppliers;
+create policy "BezB suppliers admin boundary" on public.suppliers as restrictive for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "BezB supplier products admin boundary" on public.supplier_products;
+create policy "BezB supplier products admin boundary" on public.supplier_products as restrictive for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "BezB codes admin boundary" on public.digital_codes;
+create policy "BezB codes admin boundary" on public.digital_codes as restrictive for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "BezB deliveries admin boundary" on public.order_deliveries;
+create policy "BezB deliveries admin boundary" on public.order_deliveries as restrictive for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+drop policy if exists "BezB audit admin boundary" on public.order_audit_events;
+create policy "BezB audit admin boundary" on public.order_audit_events as restrictive for select to authenticated
+  using (public.is_admin());
+
 -- Keep admin_users private and use an explicit SECURITY DEFINER predicate.
 create or replace function public.is_admin()
 returns boolean language sql stable security definer set search_path = '' as $$
@@ -204,11 +245,13 @@ begin
   values(p_order_id,p_type,auth.uid(),coalesce(p_details,'{}'::jsonb));
 end;
 $$;
-revoke all on function public.log_order_action(uuid,text,jsonb) from public;
+revoke all on function public.log_order_action(uuid,text,jsonb) from public,anon,authenticated;
 
--- Disable the earlier guest-order RPC: all new purchases must belong to the
--- confirmed email account used by the buyer's order history.
-revoke all on function public.place_public_order(text,text,text,text,text,boolean,jsonb) from public,anon,authenticated;
+-- Keep the guest RPC from migration 001. It only creates an order from
+-- server-priced catalog rows and returns that one creation response; it does
+-- not grant table reads or associate the guest with another order. The buyer
+-- RPC below remains available for account-linked order history.
+grant execute on function public.place_public_order(text,text,text,text,text,boolean,jsonb) to anon, authenticated;
 
 create or replace function public.place_buyer_order(
   p_customer_name text,p_customer_phone text,p_customer_email text,p_delivery_address text,
@@ -370,14 +413,29 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_confirm_payment(uuid) from public;
-revoke all on function public.admin_start_processing(uuid) from public;
-revoke all on function public.admin_cancel_order(uuid) from public;
-revoke all on function public.admin_assign_code(uuid,uuid,uuid) from public;
-revoke all on function public.admin_deliver_order(uuid) from public;
-revoke all on function public.admin_mark_delivery_email_sent(uuid) from public;
-revoke all on function public.my_delivered_codes() from public;
-revoke all on function public.place_buyer_order(text,text,text,text,text,boolean,jsonb,uuid) from public;
+revoke all on function public.sync_product_active() from public,anon,authenticated;
+revoke all on function public.admin_confirm_payment(uuid) from public,anon,authenticated;
+revoke all on function public.admin_start_processing(uuid) from public,anon,authenticated;
+revoke all on function public.admin_cancel_order(uuid) from public,anon,authenticated;
+revoke all on function public.admin_assign_code(uuid,uuid,uuid) from public,anon,authenticated;
+revoke all on function public.admin_deliver_order(uuid) from public,anon,authenticated;
+revoke all on function public.admin_mark_delivery_email_sent(uuid) from public,anon,authenticated;
+revoke all on function public.my_delivered_codes() from public,anon,authenticated;
+revoke all on function public.place_buyer_order(text,text,text,text,text,boolean,jsonb,uuid) from public,anon,authenticated;
+revoke all on function public.is_admin() from public,anon,authenticated;
+grant execute on function public.is_admin() to authenticated;
+revoke all on public.products,public.orders,public.order_items,public.suppliers,public.supplier_products,
+  public.digital_codes,public.order_deliveries,public.order_audit_events,public.admin_users from public,anon,authenticated;
+grant select on public.catalog_public to anon,authenticated;
+grant select,insert,update,delete on public.products to authenticated;
+grant select,insert,update,delete on public.suppliers,public.supplier_products to authenticated;
+grant select,insert,update,delete on public.digital_codes,public.order_deliveries to authenticated;
+grant select on public.order_audit_events,public.orders,public.order_items to authenticated;
+grant update (status,version,admin_metadata,updated_at) on public.orders to authenticated;
+revoke insert,delete on public.orders,public.order_items from authenticated;
+revoke update on public.order_items from authenticated;
+revoke all on public.order_idempotency from public,anon,authenticated;
+grant execute on function public.place_public_order(text,text,text,text,text,boolean,jsonb) to anon,authenticated;
 grant execute on function public.admin_confirm_payment(uuid) to authenticated;
 grant execute on function public.admin_start_processing(uuid) to authenticated;
 grant execute on function public.admin_cancel_order(uuid) to authenticated;

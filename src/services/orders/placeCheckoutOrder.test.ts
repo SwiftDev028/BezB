@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { CartItem, Order } from '../../types'
 import type { OrdersRepository } from './OrdersRepository'
-import { placeCheckoutOrder } from './placeCheckoutOrder'
+import type { Product } from '../../types'
+import { buildCheckoutRpcItems, parseCheckoutRpcResponse, placeCheckoutOrder } from './placeCheckoutOrder'
 
 function memoryRepo(initial: Order[] = [], failSave = false): OrdersRepository & { data: Order[] } {
   const data = [...initial]
@@ -80,5 +81,28 @@ describe('оформление через репозиторий', () => {
     expect((await placeCheckoutOrder([], customer, repo)).ok).toBe(false)
     expect((await placeCheckoutOrder(cart, { name: '', email: '' }, repo)).ok).toBe(false)
     expect(repo.data).toHaveLength(0)
+  })
+})
+
+const regionalProducts: Product[] = [
+  { id: 'gift-card', slug: 'gift-us', title: 'Gift Card', category: 'apple', platform: 'Gift Card', type: 'gift-card', price: 1000, currency: 'RUB', description: '', delivery: '', restrictions: [], available: true, popularity: 0, addedAt: '', tags: [], country: 'US' },
+  { id: 'gift-card', slug: 'gift-tr', title: 'Gift Card', category: 'apple', platform: 'Gift Card', type: 'gift-card', price: 350, currency: 'RUB', description: '', delivery: '', restrictions: [], available: true, popularity: 0, addedAt: '', tags: [], country: 'TR' },
+]
+const regionalLookup = (id: string, region?: string) => regionalProducts.find((product) => product.id === id && (product.country ?? '') === region)
+
+describe('checkout RPC payload', () => {
+  it('sends the price for the selected regional variant', () => {
+    expect(buildCheckoutRpcItems([{ productId: 'gift-card', region: 'TR', quantity: 2 }], regionalLookup)).toEqual([
+      { product_id: 'gift-card', quantity: 2, region: 'TR', expected_price: 350 },
+    ])
+  })
+
+  it('does not invent a price when the chosen region cannot be resolved', () => {
+    expect(buildCheckoutRpcItems([{ productId: 'gift-card', region: 'JP', quantity: 1 }], regionalLookup)[0].expected_price).toBeNull()
+  })
+
+  it('returns a failure for a Supabase RPC error instead of a success-shaped order', () => {
+    expect(parseCheckoutRpcResponse(null, { message: 'price changed' })).toEqual({ ok: false, error: 'price changed' })
+    expect(parseCheckoutRpcResponse(null, null)).toEqual({ ok: false, error: 'Сервер не вернул подтверждение создания заказа.' })
   })
 })
