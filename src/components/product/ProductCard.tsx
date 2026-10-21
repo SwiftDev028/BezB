@@ -18,6 +18,20 @@ export function ProductCard({ product, layout = 'grid' }: ProductCardProps) {
   const href = `/product/${product.slug}`
   // Регион выбирается на странице товара — молча подставлять его нельзя
   const needsRegion = Boolean(product.regions?.length)
+  const hasDenomination = product.denomination !== null && product.denomination !== undefined
+  const variantAction = (product.regions?.length ?? 0) > 1 && hasDenomination
+    ? 'Выбрать регион и номинал'
+    : (product.regions?.length ?? 0) > 1
+      ? 'Выбрать регион'
+      : hasDenomination
+        ? 'Выбрать номинал'
+        : 'Выбрать вариант'
+  const variantDetails = [
+    product.country ? `Регион: ${product.country}` : null,
+    hasDenomination
+      ? `Номинал: ${product.denomination} ${product.denominationCurrency ?? ''}`.trim()
+      : null,
+  ].filter(Boolean)
 
   return (
     <article
@@ -47,6 +61,9 @@ export function ProductCard({ product, layout = 'grid' }: ProductCardProps) {
               {product.title}
             </Link>
           </h3>
+          {variantDetails.length > 0 && (
+            <p className="mt-1 text-sm text-silver">{variantDetails.join(' · ')}</p>
+          )}
           {isList && <p className="mt-2 hidden max-w-xl text-sm text-silver sm:block">{product.description}</p>}
         </div>
 
@@ -55,7 +72,7 @@ export function ProductCard({ product, layout = 'grid' }: ProductCardProps) {
         <div className={`flex gap-2 ${isList ? 'flex-col sm:flex-row' : 'flex-col min-[480px]:flex-row'}`}>
           {needsRegion && product.available ? (
             <Link to={href} className={`${btnPrimary} flex-1`}>
-              Выбрать регион
+              {variantAction}
             </Link>
           ) : (
             <AddToCartButton
