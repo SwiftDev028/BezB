@@ -14,11 +14,8 @@ import {
   MAX_TEXT,
   addComment,
   changeFulfillmentStatus,
-  changePaymentStatus,
   fulfillmentLabels,
   fulfillmentStatuses,
-  paymentLabels,
-  paymentStatuses,
   setDeliveryInfo,
 } from '../../utils/orders'
 
@@ -43,13 +40,12 @@ export default function AdminOrderDetailPage() {
   if (loading) return <p role="status" className="text-silver">Загрузка…</p>
   if (!order)
     return (
-      <EmptyState icon={SearchX} title="Заказ не найден" text="Возможно, демо-данные были сброшены.">
+      <EmptyState icon={SearchX} title="Заказ не найден" text="Заказ отсутствует или недоступен.">
         <Link to="/admin/orders" className={btnSecondary}>К списку заказов</Link>
       </EmptyState>
     )
 
   const finalFulfillment = order.fulfillmentStatus === 'delivered' || order.fulfillmentStatus === 'cancelled'
-  const paymentFinal = order.paymentStatus === 'refunded'
 
   const submitComment = async (e: FormEvent) => {
     e.preventDefault()
@@ -104,7 +100,7 @@ export default function AdminOrderDetailPage() {
               ))}
             </ul>
             <p className="flex items-baseline justify-between border-t border-line p-4">
-              <span className="text-silver">Итого (демонстрационная сумма)</span>
+              <span className="text-silver">Итого</span>
               <span className="font-display text-3xl font-bold">{formatPrice(order.total, order.currency)}</span>
             </p>
           </section>
@@ -114,6 +110,10 @@ export default function AdminOrderDetailPage() {
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div><dt className="text-xs uppercase tracking-wider text-silver">Имя</dt><dd className="mt-0.5">{order.customer.name}</dd></div>
               <div><dt className="text-xs uppercase tracking-wider text-silver">Email</dt><dd className="mt-0.5 break-all">{order.customer.email}</dd></div>
+              <div><dt className="text-xs uppercase tracking-wider text-silver">Телефон</dt><dd className="mt-0.5">{order.customer.phone || '—'}</dd></div>
+              <div><dt className="text-xs uppercase tracking-wider text-silver">Доставка / получение</dt><dd className="mt-0.5">{order.customer.address || '—'}</dd></div>
+              {order.customer.comment && <div className="sm:col-span-2"><dt className="text-xs uppercase tracking-wider text-silver">Комментарий покупателя</dt><dd className="mt-0.5 whitespace-pre-wrap">{order.customer.comment}</dd></div>}
+              {order.consentAt && <div className="sm:col-span-2 text-xs text-silver">Согласие подтверждено: {formatDateTime(order.consentAt)}</div>}
             </dl>
           </section>
 
@@ -121,8 +121,7 @@ export default function AdminOrderDetailPage() {
             <h2 id="delivery" className="mb-3 text-2xl">Выдача цифрового товара</h2>
             <p className="mb-3 flex gap-2 border-l-4 border-red bg-ink p-3 text-sm text-silver">
               <Info className="mt-0.5 size-4 shrink-0 text-red" aria-hidden="true" />
-              Фиксируйте только факт и способ выдачи (когда, куда, кто подтвердил). Не вносите сами коды, ключи и пароли:
-              демо-хранилище в браузере не защищено.
+              Фиксируйте только факт и способ выдачи (когда, куда, кто подтвердил). Не записывайте коды, ключи и пароли в это поле.
             </p>
             <form onSubmit={submitDelivery} className="space-y-3">
               <label htmlFor="delivery-note" className="block text-xs font-semibold uppercase tracking-wider text-silver">Информация о выдаче</label>
@@ -154,18 +153,7 @@ export default function AdminOrderDetailPage() {
           <section aria-labelledby="statuses" className="space-y-4 border border-line bg-coal p-4">
             <h2 id="statuses" className="text-2xl">Статусы</h2>
             <p className="text-xs text-silver">Статусы меняются вручную. Подтверждения платежа от провайдера здесь нет: оплата не подключена.</p>
-            <StatusChanger
-              label="Оплата"
-              current={order.paymentStatus}
-              options={paymentStatuses}
-              labels={paymentLabels}
-              disabled={paymentFinal}
-              disabledReason="После возврата статус оплаты не меняется."
-              onApply={async (to, note) => {
-                const r = await update(order.id, (o, now) => changePaymentStatus(o, to, now, note))
-                return r.ok ? null : r.error
-              }}
-            />
+            <p className="border border-line p-3 text-sm text-silver">Оплата не подключена. Заказ остаётся неоплаченным; изменить статус оплаты нельзя.</p>
             <StatusChanger
               label="Выполнение"
               current={order.fulfillmentStatus}

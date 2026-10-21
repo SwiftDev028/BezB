@@ -50,7 +50,8 @@ export interface Order {
   version: number
   createdAt: string
   updatedAt: string
-  customer: { name: string; email: string }
+  customer: { name: string; email: string; phone?: string; address?: string; comment?: string }
+  consentAt?: string
   items: OrderItem[]
   total: number
   currency: Currency

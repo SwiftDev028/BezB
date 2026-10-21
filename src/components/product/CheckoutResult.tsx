@@ -4,16 +4,16 @@ import type { Order } from '../../types'
 import { formatDateTime } from '../../utils/formatDate'
 import { formatPrice } from '../../utils/format'
 import { FulfillmentBadge, PaymentBadge } from '../admin/StatusBadge'
-import { btnPrimary, btnSecondary } from '../common/ui'
+import { btnSecondary } from '../common/ui'
 
-/** Результат оформления. Намеренно не похож на «успешную покупку»: ничего не оплачено и не выдано. */
+/** Подтверждение сохранённого заказа; оплата и выдача не выполняются. */
 export function CheckoutResult({ order }: { order: Order }) {
   return (
     <div className="container-x py-8 sm:py-12">
       <div className="mx-auto max-w-3xl">
-        <p className="mb-1 font-display text-sm uppercase tracking-[0.2em] text-red">Демонстрационный режим</p>
+        <p className="mb-1 font-display text-sm uppercase tracking-[0.2em] text-red">Заказ оформлен</p>
         <h1 className="text-4xl sm:text-5xl" tabIndex={-1} id="checkout-result-title">
-          Демо-заказ создан
+          Заказ создан
         </h1>
 
         <p role="status" className="mt-4 text-lg text-silver">
@@ -23,10 +23,9 @@ export function CheckoutResult({ order }: { order: Order }) {
         <div className="mt-5 flex gap-3 border border-red bg-red/10 p-4 text-sm">
           <Info className="mt-0.5 size-5 shrink-0 text-red-hot" aria-hidden="true" />
           <div className="space-y-1">
-            <p className="font-semibold text-white">Заказ существует только в этом браузере.</p>
+            <p className="font-semibold text-white">Заказ сохранён в магазине.</p>
             <p className="text-silver">
-              Он сохранён в localStorage вашего браузера, не отправлен на сервер и пропадёт при очистке данных сайта.
-              Оплата не подключена: ничего не оплачено, товар не выдан, письмо не отправлено.
+              Онлайн-оплата не подключена: заказ не оплачен и товар не выдан. С магазином можно связаться по указанным контактам.
             </p>
           </div>
         </div>
@@ -48,7 +47,7 @@ export function CheckoutResult({ order }: { order: Order }) {
             ))}
           </ul>
           <p className="flex items-baseline justify-between border-t border-line p-4">
-            <span className="text-silver">Итого (демонстрационная сумма)</span>
+            <span className="text-silver">Итого</span>
             <span className="font-display text-3xl font-bold">{formatPrice(order.total, order.currency)}</span>
           </p>
         </section>
@@ -70,9 +69,6 @@ export function CheckoutResult({ order }: { order: Order }) {
         </dl>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <Link to={`/admin/orders/${order.id}`} className={btnPrimary}>
-            Открыть в админ-панели (демо)
-          </Link>
           <Link to="/catalog" className={btnSecondary}>
             Вернуться в каталог
           </Link>

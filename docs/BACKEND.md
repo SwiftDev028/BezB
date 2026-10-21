@@ -1,76 +1,45 @@
-# Подготовка к backend и оплате
+# Supabase setup for BezB
 
-Сейчас BezB — статический сайт на GitHub Pages. Админка заказов (`/admin/orders`) — **демонстрационная**:
-заказы лежат в `localStorage` браузера, авторизации нет. Этот документ описывает, как заменить демо настоящим
-backend, не переписывая интерфейс.
+The project now uses Supabase Auth and the existing order tables when its two public Vite settings are present. Checkout calls the PostgreSQL RPC `public.place_public_order`; the function checks the current server-side catalog price and creates the order and lines in one transaction. The browser never receives a `service_role` key. The catalog table deliberately starts empty: all current entries in `src/data/products.ts` are explicitly test data.
 
-## Что уже подготовлено
+## 1. Review and apply the migration
 
-| Слой | Файл | Назначение |
-|---|---|---|
-| Модель | `src/types/orders.ts` | `Order`, статусы, события истории. Позиции — снимок цены и названия на момент заказа. |
-| Правила | `src/utils/orders.ts` | Чистые функции: смена статусов с проверкой переходов, комментарии, выдача, поиск/фильтры. Покрыты тестами. |
-| Хранилище | `src/services/orders/OrdersRepository.ts` | Интерфейс доступа к заказам (асинхронный). |
-| Демо-реализация | `src/services/orders/localOrdersRepository.ts` | localStorage. Единственное, что нужно заменить. |
-| Точка подключения | `src/services/orders/index.ts` | Одна строка выбирает реализацию. |
-| Оплата | `src/services/payments/PaymentProvider.ts` | Контракт провайдера; сейчас `manualPaymentProvider`, который намеренно ничего не создаёт. |
+Open the Supabase SQL Editor for project `itasmmduvafvpnytgzey` and inspect the current `orders`, `order_items`, `admin_users`, RLS policies, `is_admin()` function, and grants first. Then run the whole file [`supabase/migrations/202610210001_orders_integration.sql`](../supabase/migrations/202610210001_orders_integration.sql) once. It uses additive `IF NOT EXISTS` changes and does not drop or recreate existing orders. Check the result for SQL errors. It adds a product price table, consent timestamp, order version/metadata, line platform/region fields, and the public order RPC. It revokes direct table writes and limits order changes to authenticated administrators under the existing RLS policies.
 
-UI работает только через `useOrders()` (`src/context/OrdersContext.tsx`) и не знает, где лежат данные.
+The migration assumes the stated existing order columns (`customer_phone`, `delivery_address`, `customer_comment`, `status`, `total_amount`) and `public.is_admin()` with no arguments returning boolean. The `admin_users` table stays inaccessible to the browser; the UI calls the existing `is_admin()` function. Verify that it is executable by `authenticated` as described in the original project setup.
 
-## Как подключить backend
+## 2. Add real products later
 
-1. Поднять сервис (например, Supabase/PostgreSQL или собственный API) с таблицами `orders`, `order_items`,
-   `order_events`. Поля — по `Order` и `OrderEvent`.
-2. Написать `HttpOrdersRepository implements OrdersRepository`: `list`, `get`, `save` обращаются к API.
-3. В `services/orders/index.ts` заменить `localOrdersRepository` на новую реализацию.
-4. Перенести правила из `utils/orders.ts` на сервер (см. ниже) — клиентская проверка остаётся для удобства, но не для защиты.
+Do not seed from the current demo catalog. Until products exist, the RPC rejects every checkout. To list a real item later, the owner must first replace its placeholder entry in `src/data/products.ts` with verified data, retaining a stable `id`/slug, and add the matching server record in `public.products`. Required columns are `product_id`, `region` (empty string for no region), `title`, `platform`, `currency` (`RUB`), `unit_price`, and `active`. For region-priced variants, add one row for each region with its own authoritative price; the matching frontend product must expose those region labels. The server rejects inactive/missing IDs and rejects a checkout if the frontend's displayed price does not equal the current database price. This fail-closed check prevents an out-of-date static GitHub Pages build from placing a differently priced order.
 
-## Что обязательно должно быть на сервере
+Use the Supabase Table Editor while signed in as an administrator to add product rows; do not add activation codes, credentials, or supplier secrets. Keep demo records out of the products table. No product catalog migration import is needed because all current data is explicitly fictional/test content.
 
-- **Авторизация и роли.** Вход администратора (например, Supabase Auth) и проверка прав на каждый запрос.
-  Сейчас любой, кто откроет `/admin`, увидит админку — на статическом хостинге это нельзя исправить во frontend.
-  Скрытие ссылки или пароль в коде — не защита.
-- **Повторная проверка переходов статусов.** Те же правила, что в `changePaymentStatus` / `changeFulfillmentStatus`:
-  выдача только по оплаченному заказу, конечные статусы неизменны, возврат только после оплаты.
-- **Конфликты правок.** Поле `version` растёт при каждом изменении; сервер должен отклонять сохранение устаревшей
-  версии, иначе два администратора затрут правки друг друга.
-- **История на сервере.** События добавляются только сервером, с настоящим идентификатором пользователя (`actor`),
-  и не редактируются. Сейчас `actor` — фиксированный текст.
-- **Журнал и права на чтение персональных данных** (имя, email покупателя).
+## 3. Configure local build and GitHub Pages
 
-## Оплата
+Copy `.env.example` to `.env.local` for local work and set:
 
-1. Платёж создаётся **на сервере**: `PaymentProvider.createPayment(order)` возвращает ссылку на страницу провайдера.
-2. Статус «оплачен» выставляется **только по подписанному уведомлению (webhook) провайдера**, проверенному на
-   сервере. Никогда — по данным из браузера и не по возврату пользователя на сайт.
-3. Секретные ключи провайдера хранятся только на сервере (не в `VITE_*` переменных — они попадают в публичный бандл).
-4. Провайдера выбирают под страну, юридическую модель и валюту продавца — это отдельное решение.
-5. Ручная смена статуса оплаты в админке нужна как аварийный инструмент и должна писаться в историю.
+```env
+VITE_SUPABASE_URL=https://itasmmduvafvpnytgzey.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=<public publishable key or legacy anon key>
+```
 
-## Выдача цифрового товара
+Get the URL and publishable/anon key from Supabase **Project Settings → API**. Never use a `service_role` or secret key here. Anything named `VITE_*` is embedded in the public bundle; it is public configuration only.
 
-Поле «Информация о выдаче» фиксирует **факт и способ** выдачи. Коды, ключи и пароли не должны храниться в
-обычном текстовом поле и тем более в браузере. При автоматической выдаче секреты получают с серверной стороны от
-поставщика и отдают покупателю по защищённому каналу; в базе хранят зашифрованно либо не хранят вовсе.
+The GitHub Actions workflow already builds the site. In the repository's **Settings → Secrets and variables → Actions → Variables**, add `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as repository variables (or set the workflow references to environment-specific variables if using GitHub Environments). Push to `main` or run **Actions → Deploy to GitHub Pages → Run workflow**. Ensure **Settings → Pages → Build and deployment → GitHub Actions** remains selected. Do not create a secret for a service-role key or add one to the workflow.
 
-## Создание заказов покупателем
+In the Supabase Auth URL configuration, allow the published GitHub Pages URL and the local development URL as redirect/site URLs. Turn off public user sign-up if the project is administrator-only. Existing administrator `57556b8a-b4df-46ed-b237-617fcc2e0fa7` must still exist in Auth and `admin_users`.
 
-Сейчас `/checkout` создаёт демо-заказ через `placeCheckoutOrder` (`src/services/orders/placeCheckoutOrder.ts`) и
-сохраняет его в том же репозитории, что читает админка. Сборка заказа из корзины — чистая функция
-`buildCheckoutOrder` (`src/utils/checkout.ts`), покрыта тестами.
+## 4. Verify setup
 
-Что изменится с backend:
+1. Before product setup, use `/checkout` with a cart item: it should fail with an unavailable product and keep the cart. This confirms no demo item becomes a real order.
+2. Visit `/admin/orders` signed out: the page shows login and no orders. A normal authenticated account must be rejected. The designated admin should see the list (empty initially).
+3. After the owner has entered one verified real product in both catalog sources, add it to cart and submit valid name, phone, email, delivery details, and consent. The confirmation must show the database order number; the admin list on another device/session should show it.
+4. In SQL Editor, check `orders` and `order_items`: stored prices and total must match `products`, status must start at `new`, and `consent_at` must be non-null. Try changing the frontend displayed price and confirm checkout is rejected. Test reads/writes with anonymous and ordinary-user sessions; RLS must deny access.
 
-- **Цены и номер назначает сервер.** Корзина уходит на сервер как список «товар, количество, регион», сервер сам
-  пересчитывает цены по своему каталогу и присваивает номер. Цены из браузера доверия не заслуживают.
-- **Нумерация.** Сейчас номер = максимальный + 1 по локальному списку, а очередь в `placeCheckoutOrder` защищает только
-  от гонки внутри одной вкладки. Две вкладки или два устройства могут получить одинаковый номер — на сервере номер
-  выдаёт база (последовательность или уникальный индекс).
-- **Повторная отправка.** Сервер должен принимать ключ идемпотентности (например, UUID, созданный при открытии
-  формы), чтобы повтор запроса не создал второй заказ.
-- **Начальные статусы** остаются теми же: оплата «Ожидает оплаты», выполнение «Ожидает обработки». «Оплачен» ставит
-  только webhook платёжного провайдера (см. выше).
-- **Уведомления.** Подтверждение покупателю отправляет сервер; сейчас письма не отправляются, и интерфейс об этом
-  прямо говорит.
-- Покупатель увидит свой заказ только при наличии аккаунта или ссылки с подписанным токеном; публичный список
-  заказов недопустим.
+No remote Supabase schema or auth state was inspected or changed from this workspace. Do not paste passwords or secret keys into chat.
+
+## Status and remaining limits
+
+Database statuses are mapped from the UI: `new`, `processing`, `delivered` → `shipped`, and `cancelled`. Existing `confirmed` and `completed` rows appear as `processing` and `delivered`. Payment is not configured; every order remains unpaid and the interface does not allow marking it paid. Consequently the existing rule that requires payment before delivery prevents marking orders as delivered until a real payment flow is added. Event history and delivery notes are stored in `admin_metadata`; concurrent admin edits use the order `version` and stale saves are rejected. Do not store activation codes, passwords, or keys in notes.
+
+The website still serves a static, manually maintained catalog because the owner has no verified products yet. Product records must be kept in sync with that catalog; a mismatch blocks checkout rather than charging a stale displayed price. Email notifications, customer self-service, refunds, and online payment are not implemented. Buyers cannot read their order after submission; only administrators can read orders.

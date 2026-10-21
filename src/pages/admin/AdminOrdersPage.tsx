@@ -1,10 +1,9 @@
-import { useId, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { ClipboardList, Plus, RotateCcw, X } from 'lucide-react'
+import { useId, useMemo } from 'react'
+import { Link } from 'react-router-dom'
+import { ClipboardList, X } from 'lucide-react'
 import { FulfillmentBadge, PaymentBadge } from '../../components/admin/StatusBadge'
-import { NewOrderForm } from '../../components/admin/NewOrderForm'
 import { EmptyState } from '../../components/common/EmptyState'
-import { btnSecondary, inputClass } from '../../components/common/ui'
+import { inputClass } from '../../components/common/ui'
 import { useOrders } from '../../context/OrdersContext'
 import { useDocumentTitle } from '../../hooks/useDocumentTitle'
 import { useOrderFilters } from '../../hooks/useOrderFilters'
@@ -42,11 +41,8 @@ function Field({ label, htmlFor, children }: { label: string; htmlFor: string; c
 export default function AdminOrdersPage() {
   useDocumentTitle('Админ: заказы')
   const uid = useId()
-  const navigate = useNavigate()
-  const { orders, loading, loadError, resetDemo } = useOrders()
+  const { orders, loading, loadError } = useOrders()
   const { filters, update, reset } = useOrderFilters()
-  const [showForm, setShowForm] = useState(false)
-  const [confirmReset, setConfirmReset] = useState(false)
 
   const results = useMemo(() => filterOrders(orders, filters), [orders, filters])
   const stats = useMemo(() => orderStats(orders), [orders])
@@ -67,47 +63,8 @@ export default function AdminOrdersPage() {
           <p className="mb-1 font-display text-sm uppercase tracking-[0.2em] text-red">Админ-панель</p>
           <h1 className="text-4xl sm:text-5xl">Заказы</h1>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setShowForm((v) => !v)} aria-expanded={showForm} className={btnSecondary}>
-            <Plus className="size-5" aria-hidden="true" />
-            Новый демо-заказ
-          </button>
-          {confirmReset ? (
-            <span className="inline-flex items-center gap-2 border border-red px-3 text-sm">
-              Сбросить все заказы к тестовым?
-              <button
-                type="button"
-                className="min-h-11 px-2 font-semibold text-red-hot hover:underline"
-                onClick={async () => {
-                  await resetDemo()
-                  setConfirmReset(false)
-                }}
-              >
-                Да, сбросить
-              </button>
-              <button type="button" className="min-h-11 px-2 text-silver hover:text-white" onClick={() => setConfirmReset(false)}>
-                Отмена
-              </button>
-            </span>
-          ) : (
-            <button type="button" onClick={() => setConfirmReset(true)} className={btnSecondary}>
-              <RotateCcw className="size-5" aria-hidden="true" />
-              Сбросить демо-данные
-            </button>
-          )}
-        </div>
+        <p className="text-sm text-silver">Реальные заказы из Supabase</p>
       </div>
-
-      {showForm && (
-        <div className="mb-6">
-          <NewOrderForm
-            onCreated={(newId) => {
-              setShowForm(false)
-              navigate(`/admin/orders/${newId}`)
-            }}
-          />
-        </div>
-      )}
 
       <dl className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Всего заказов" value={stats.total} />
@@ -160,7 +117,7 @@ export default function AdminOrdersPage() {
         <EmptyState
           icon={ClipboardList}
           title={orders.length === 0 ? 'Заказов пока нет' : 'Ничего не найдено'}
-          text={orders.length === 0 ? 'Создайте демо-заказ или сбросьте демо-данные.' : 'Измените запрос или сбросьте фильтры.'}
+          text={orders.length === 0 ? 'Новые заказы появятся после оформления покупателем.' : 'Измените запрос или сбросьте фильтры.'}
         />
       ) : (
         <div>

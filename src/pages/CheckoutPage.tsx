@@ -13,12 +13,16 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatPrice } from '../utils/format'
 import { lineKey } from '../utils/cart'
 import { validateCheckout, type CheckoutErrors } from '../utils/checkout'
+import { supabaseConfigured } from '../services/supabase'
 
 export default function CheckoutPage() {
   useDocumentTitle('Оформление заказа')
   const { items, clear } = useCart()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
+  const [comment, setComment] = useState('')
   const [agree, setAgree] = useState(false)
   const [errors, setErrors] = useState<CheckoutErrors>({})
   const [placed, setPlaced] = useState<Order | null>(null)
@@ -52,10 +56,10 @@ export default function CheckoutPage() {
     e.preventDefault()
     if (submitting.current) return
     setSubmitError(null)
-    const found = validateCheckout(name, email, agree)
+    const found = validateCheckout(name, email, agree, phone, address)
     setErrors(found)
     if (Object.keys(found).length > 0) {
-      const firstId = found.name ? 'co-name' : found.email ? 'co-email' : 'co-agree'
+      const firstId = found.name ? 'co-name' : found.phone ? 'co-phone' : found.email ? 'co-email' : found.address ? 'co-address' : 'co-agree'
       formRef.current?.querySelector<HTMLElement>(`#${firstId}`)?.focus()
       return
     }
@@ -63,8 +67,8 @@ export default function CheckoutPage() {
     submitting.current = true
     setBusy(true)
     try {
-      // Демо-заказ сохраняется в localStorage через тот же репозиторий, что читает админка
-      const result = await placeCheckoutOrder(items, { name, email })
+      // Сервер проверяет активность вариантов и сам рассчитывает цены и итоговую сумму.
+      const result = await placeCheckoutOrder(items, { name, email, phone, address, comment, consent: agree })
       if (!result.ok) {
         setSubmitError(result.error)
         return
@@ -88,10 +92,10 @@ export default function CheckoutPage() {
   return (
     <div className="container-x py-8 sm:py-12">
       <h1 className="mb-2 text-4xl sm:text-5xl">Оформление заказа</h1>
-      <p className="mb-6 flex items-start gap-2 border border-red bg-red/10 p-3 text-sm font-semibold">
+      {!supabaseConfigured && <p className="mb-6 flex items-start gap-2 border border-red bg-red/10 p-3 text-sm font-semibold">
         <Info className="mt-0.5 size-5 shrink-0 text-red-hot" aria-hidden="true" />
-        Демонстрационный режим. Оплата пока не подключена.
-      </p>
+        Supabase не настроен. Реальные заказы временно недоступны.
+      </p>}
 
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
         <form ref={formRef} onSubmit={onSubmit} noValidate className="space-y-5 border border-line bg-coal p-5 sm:p-6">
@@ -113,6 +117,11 @@ export default function CheckoutPage() {
           </div>
 
           <div>
+            <label htmlFor="co-phone" className="mb-1.5 block text-sm font-semibold">Телефон</label>
+            <input id="co-phone" name="phone" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} aria-invalid={Boolean(errors.phone)} className={inputClass} />
+            {errorText('co-phone-error', errors.phone)}
+          </div>
+          <div>
             <label htmlFor="co-email" className="mb-1.5 block text-sm font-semibold">Email</label>
             <input
               id="co-email"
@@ -126,6 +135,15 @@ export default function CheckoutPage() {
               className={inputClass}
             />
             {errorText('co-email-error', errors.email)}
+          </div>
+          <div>
+            <label htmlFor="co-address" className="mb-1.5 block text-sm font-semibold">Адрес / способ получения</label>
+            <input id="co-address" name="address" autoComplete="street-address" value={address} onChange={(e) => setAddress(e.target.value)} aria-invalid={Boolean(errors.address)} className={inputClass} />
+            {errorText('co-address-error', errors.address)}
+          </div>
+          <div>
+            <label htmlFor="co-comment" className="mb-1.5 block text-sm font-semibold">Комментарий</label>
+            <textarea id="co-comment" maxLength={1000} value={comment} onChange={(e) => setComment(e.target.value)} className={`${inputClass} py-2`} />
           </div>
 
           <div>
@@ -159,12 +177,11 @@ export default function CheckoutPage() {
 
           <p className="flex gap-2 text-xs text-silver">
             <Info className="mt-0.5 size-4 shrink-0 text-red" aria-hidden="true" />
-            Нажатие создаст демонстрационный заказ. Он сохранится только в этом браузере (localStorage), на сервер не
-            отправляется, оплата не выполняется.
+            Заказ отправляется в Supabase. Онлайн-оплата не подключена и при оформлении не выполняется.
           </p>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <button type="submit" disabled={busy} aria-busy={busy} className={btnPrimary}>
+            <button type="submit" disabled={busy || !supabaseConfigured} aria-busy={busy} className={btnPrimary}>
               {busy ? 'Создаём заказ…' : 'Оформить заказ'}
             </button>
             <Link to="/cart" className={btnSecondary}>
