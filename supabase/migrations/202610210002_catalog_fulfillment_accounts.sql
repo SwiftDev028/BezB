@@ -359,7 +359,7 @@ returns table(order_id uuid,order_number text,product_name text,region text,code
 language plpgsql stable security definer set search_path = '' as $$
 begin
   if auth.uid() is null then raise exception 'Sign in required'; end if;
-  return query select d.order_id,o.order_number,i.product_name,nullif(c.region,''),c.secret_code,p.activation_instructions
+  return query select d.order_id,o.order_number::text,i.product_name,nullif(c.region,''),c.secret_code,p.activation_instructions
     from public.order_deliveries d
     join public.orders o on o.id=d.order_id
     join public.order_items i on i.id=d.order_item_id
