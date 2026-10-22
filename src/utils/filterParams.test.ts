@@ -33,4 +33,10 @@ describe('параметры фильтров в URL', () => {
   it('значения по умолчанию не попадают в URL', () => {
     expect(filtersToParams(defaultFilters).toString()).toBe('')
   })
+
+  it('игнорирует старый URL-параметр номинала', () => {
+    const parsed = filtersFromParams(new URLSearchParams('denom=100%20TRY'))
+    expect(parsed).toEqual(defaultFilters)
+    expect(filtersToParams(parsed).has('denom')).toBe(false)
+  })
 })

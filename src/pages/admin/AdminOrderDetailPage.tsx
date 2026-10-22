@@ -130,7 +130,7 @@ export default function AdminOrderDetailPage() {
               <div><dt className="text-xs uppercase tracking-wider text-silver">Имя</dt><dd className="mt-0.5">{order.customer.name}</dd></div>
               <div><dt className="text-xs uppercase tracking-wider text-silver">Email</dt><dd className="mt-0.5 break-all">{order.customer.email}</dd></div>
               <div><dt className="text-xs uppercase tracking-wider text-silver">Телефон</dt><dd className="mt-0.5">{order.customer.phone || '—'}</dd></div>
-              <div><dt className="text-xs uppercase tracking-wider text-silver">Доставка / получение</dt><dd className="mt-0.5">{order.customer.address || '—'}</dd></div>
+              {order.customer.address && <div><dt className="text-xs uppercase tracking-wider text-silver">Адрес из старого заказа</dt><dd className="mt-0.5 break-words">{order.customer.address}</dd></div>}
               {order.customer.comment && <div className="sm:col-span-2"><dt className="text-xs uppercase tracking-wider text-silver">Комментарий покупателя</dt><dd className="mt-0.5 whitespace-pre-wrap">{order.customer.comment}</dd></div>}
               {order.consentAt && <div className="sm:col-span-2 text-xs text-silver">Согласие подтверждено: {formatDateTime(order.consentAt)}</div>}
             </dl>

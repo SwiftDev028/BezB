@@ -19,10 +19,9 @@ describe('проверка формы оформления', () => {
     expect(validateCheckout('Иван', '  ', true).email).toBeDefined()
   })
 
-  it('проверяет телефон и адрес для реального заказа', () => {
-    expect(validateCheckout('Иван', 'ivan@example.com', true, '', '').phone).toBeDefined()
-    expect(validateCheckout('Иван', 'ivan@example.com', true, '+7 900 123-45-67', 'Москва').address).toBeUndefined()
-    expect(validateCheckout('Иван', 'ivan@example.com', true, '+7 900 123-45-67', 'Москва')).toEqual({})
+  it('проверяет контактный телефон без адреса доставки', () => {
+    expect(validateCheckout('Иван', 'ivan@example.com', true, '').phone).toBeDefined()
+    expect(validateCheckout('Иван', 'ivan@example.com', true, '+7 900 123-45-67')).toEqual({})
   })
 
   it('ограничивает длину имени и email', () => {

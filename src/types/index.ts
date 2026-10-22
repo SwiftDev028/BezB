@@ -84,8 +84,6 @@ export interface CatalogFilters {
   region: string | 'all'
   /** Сервис / бренд («ChatGPT», «Claude») */
   brand: string | 'all'
-  /** Ключ номинала вида «100 TRY» */
-  denomination: string | 'all'
   minPrice: number | null
   maxPrice: number | null
   onlyAvailable: boolean

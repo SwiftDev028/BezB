@@ -1,9 +1,9 @@
 import type { CatalogFilters, CategoryId, Product, ProductType } from '../types'
 import { categories, typeLabels } from '../data/categories'
-import { defaultFilters, denominationKey, filterProducts } from './catalog'
+import { defaultFilters, filterProducts } from './catalog'
 
 /** Характеристики, по которым можно фильтровать. Цена и сортировка — отдельно. */
-export type FacetId = 'category' | 'type' | 'brand' | 'platform' | 'region' | 'denomination'
+export type FacetId = 'category' | 'type' | 'brand' | 'platform' | 'region'
 
 export interface FacetOption {
   value: string
@@ -24,19 +24,18 @@ export const facetLabels: Record<FacetId, string> = {
   brand: 'Сервис',
   platform: 'Платформа',
   region: 'Регион',
-  denomination: 'Номинал',
 }
 
 /**
  * Какие характеристики вообще имеют смысл в разделе. Показываются только те, у которых
  * в текущем ассортименте есть из чего выбирать (два и больше значения).
- * Порядок — порядок появления на экране, зависимые (номинал) идут после тех, от которых зависят.
+ * Порядок — порядок появления на экране.
  */
 export const facetsByScope: Record<CategoryId | 'all', FacetId[]> = {
-  apple: ['region', 'denomination'],
-  xbox: ['type', 'platform', 'region', 'denomination'],
-  playstation: ['type', 'platform', 'region', 'denomination'],
-  steam: ['type', 'region', 'denomination'],
+  apple: ['region'],
+  xbox: ['type', 'platform', 'region'],
+  playstation: ['type', 'platform', 'region'],
+  steam: ['type', 'region'],
   ai: ['brand', 'type', 'region'],
   all: ['category', 'type', 'region'],
 }
@@ -47,7 +46,6 @@ const facetKey: Record<FacetId, keyof CatalogFilters> = {
   brand: 'brand',
   platform: 'platform',
   region: 'region',
-  denomination: 'denomination',
 }
 
 function valueOf(p: Product, id: FacetId): string | null {
@@ -62,8 +60,6 @@ function valueOf(p: Product, id: FacetId): string | null {
       return p.platform || null
     case 'region':
       return p.country || null
-    case 'denomination':
-      return denominationKey(p)
   }
 }
 
@@ -73,12 +69,7 @@ function labelOf(id: FacetId, value: string): string {
   return value
 }
 
-function compareOptions(id: FacetId, a: FacetOption, b: FacetOption): number {
-  if (id === 'denomination') {
-    const na = parseFloat(a.value)
-    const nb = parseFloat(b.value)
-    if (na !== nb) return na - nb
-  }
+function compareOptions(_id: FacetId, a: FacetOption, b: FacetOption): number {
   return a.label.localeCompare(b.label, 'ru')
 }
 
@@ -90,8 +81,7 @@ function withoutFacets(filters: CatalogFilters, ids: FacetId[]): CatalogFilters 
 }
 
 /**
- * Варианты каждой характеристики считаются по товарам, которые подходят под ВСЕ ОСТАЛЬНЫЕ фильтры:
- * выбрав регион, пользователь видит только номиналы этого региона, и наоборот.
+ * Варианты каждой характеристики считаются по товарам, которые подходят под ВСЕ ОСТАЛЬНЫЕ фильтры.
  * Значения, которых в ассортименте нет, не появляются.
  */
 export function buildFacets(products: Product[], filters: CatalogFilters, scope: CategoryId | 'all'): Facet[] {
@@ -125,14 +115,13 @@ export function priceBounds(products: Product[], filters: CatalogFilters): { min
 }
 
 /**
- * Убирает выбранные значения, которых больше нет в ассортименте (например, номинал другого региона
- * из старой ссылки). Выполняется после загрузки каталога; пока данных нет, фильтры не трогаем.
+ * Убирает выбранные значения, которых больше нет в ассортименте. Выполняется после загрузки каталога;
+ * пока данных нет, фильтры не трогаем.
  */
 export function sanitizeFilters(products: Product[], filters: CatalogFilters, scope: CategoryId | 'all'): CatalogFilters {
   if (products.length === 0) return filters
   let current = filters
   for (let pass = 0; pass < 2; pass++) {
-    // С конца: зависимая характеристика (номинал) уступает той, от которой зависит (регион)
     for (const id of [...facetsByScope[scope]].reverse()) {
       const key = facetKey[id]
       const selected = current[key] as string

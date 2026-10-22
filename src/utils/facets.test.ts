@@ -23,29 +23,23 @@ const all = [...apple, ...xbox]
 const facet = (list: ReturnType<typeof buildFacets>, id: string) => list.find((x) => x.id === id)
 
 describe('фильтры по реальным характеристикам', () => {
-  it('Apple: регион и номинал, без лишних фильтров', () => {
+  it('Apple: показывает регион, но не фильтр номинала', () => {
     const facets = buildFacets(all, f({}), 'apple')
-    expect(facets.map((x) => x.id)).toEqual(['region', 'denomination'])
+    expect(facets.map((x) => x.id)).toEqual(['region'])
     expect(facet(facets, 'region')!.options.map((o) => o.value).sort()).toEqual(['Казахстан', 'Россия', 'США', 'Турция'])
+    expect(apple.every((p) => p.denomination !== null)).toBe(true)
   })
 
-  it('номиналы показываются только выбранного региона', () => {
+  it('выбранный регион сохраняет варианты с их номиналами, не предлагая фасет номинала', () => {
     const facets = buildFacets(all, f({ region: 'Турция' }), 'apple')
-    expect(facet(facets, 'denomination')!.options.map((o) => o.value)).toEqual(['100 TRY', '500 TRY'])
-  })
-
-  it('регион сужается по выбранному номиналу', () => {
-    const facets = buildFacets(all, f({ denomination: '10 USD' }), 'apple')
-    // остался один регион — выбирать не из чего, но фильтр номинала виден и снимается
-    expect(facet(facets, 'region')).toBeUndefined()
-    expect(facet(facets, 'denomination')!.selected).toBe('10 USD')
-    const withTwo = buildFacets([...all, makeProduct({ id: 'a7', country: 'Турция', denomination: 10, denominationCurrency: 'USD' })], f({ denomination: '10 USD' }), 'apple')
-    expect(facet(withTwo, 'region')!.options.map((o) => o.value).sort()).toEqual(['США', 'Турция'])
+    expect(facet(facets, 'region')!.selected).toBe('Турция')
+    expect(facets.map((x) => x.id)).toEqual(['region'])
   })
 
   it('не показывает характеристику с единственным значением', () => {
-    const facets = buildFacets(all, f({ region: 'Россия' }), 'apple')
-    expect(facet(facets, 'denomination')).toBeUndefined()
+    const oneRegion = apple.map((p) => ({ ...p, country: 'Россия' }))
+    const facets = buildFacets(oneRegion, f({}), 'apple')
+    expect(facet(facets, 'region')).toBeUndefined()
   })
 
   it('у других категорий свой набор: тип, а не регион Apple', () => {
@@ -59,7 +53,7 @@ describe('фильтры по реальным характеристикам', 
   })
 
   it('фильтры работают вместе', () => {
-    const res = filterProducts(all, f({ region: 'Турция', denomination: '500 TRY', minPrice: 1000 }))
+    const res = filterProducts(all, f({ region: 'Турция', minPrice: 1000 }))
     expect(res.map((p) => p.id)).toEqual(['a2'])
   })
 
@@ -68,14 +62,13 @@ describe('фильтры по реальным характеристикам', 
     expect(priceBounds([], f({}))).toBeNull()
   })
 
-  it('убирает номинал, которого нет у выбранного региона', () => {
-    const next = sanitizeFilters(all, f({ region: 'Турция', denomination: '10 USD' }), 'apple')
-    expect(next.region).toBe('Турция')
-    expect(next.denomination).toBe('all')
+  it('убирает регион, которого нет в ассортименте', () => {
+    const next = sanitizeFilters(all, f({ region: 'Марс' }), 'apple')
+    expect(next.region).toBe('all')
   })
 
   it('пока каталог пуст, выбор из ссылки не теряется', () => {
-    const filters = f({ region: 'Турция', denomination: '100 TRY' })
+    const filters = f({ region: 'Турция' })
     expect(sanitizeFilters([], filters, 'apple')).toEqual(filters)
   })
 

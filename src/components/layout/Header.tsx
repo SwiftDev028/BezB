@@ -39,10 +39,11 @@ export function Header() {
         <div className="flex items-center gap-2 py-2 lg:gap-6">
           <button
             type="button"
-            onClick={() => setMenuOpen(true)}
+            onClick={() => setMenuOpen((current) => !current)}
             aria-label="Открыть меню"
             aria-haspopup="dialog"
             aria-expanded={menuOpen}
+            aria-controls="mobile-navigation-menu"
             className={`${iconLink} lg:hidden`}
           >
             <Menu className="size-6" aria-hidden="true" />

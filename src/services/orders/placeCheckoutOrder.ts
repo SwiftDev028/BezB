@@ -43,7 +43,7 @@ export function parseCheckoutRpcResponse(
  */
 export function placeCheckoutOrder(
   cart: CartItem[],
-  customer: { name: string; email: string; phone?: string; address?: string; comment?: string; consent?: boolean },
+  customer: { name: string; email: string; phone?: string; comment?: string; consent?: boolean },
   repo: OrdersRepository = ordersRepository,
   lookup: (id: string, region?: string) => Product | undefined = getProduct,
   customerUserId?: string,
@@ -66,7 +66,7 @@ function checkoutRequestKey(cart: CartItem[], email: string): { fingerprint: str
   } catch { return { fingerprint, key: crypto.randomUUID() } }
 }
 
-async function placeRemote(cart: CartItem[], customer: { name: string; email: string; phone?: string; address?: string; comment?: string; consent: boolean }, lookup: (id: string, region?: string) => Product | undefined, customerUserId?: string): Promise<Result<Order>> {
+async function placeRemote(cart: CartItem[], customer: { name: string; email: string; phone?: string; comment?: string; consent: boolean }, lookup: (id: string, region?: string) => Product | undefined, customerUserId?: string): Promise<Result<Order>> {
   try {
     const items = buildCheckoutRpcItems(cart, lookup)
     const client = requireSupabase()
@@ -74,12 +74,14 @@ async function placeRemote(cart: CartItem[], customer: { name: string; email: st
     const { data, error } = customerUserId
       ? await client.rpc('place_buyer_order', {
           p_customer_name: customer.name, p_customer_phone: customer.phone ?? '', p_customer_email: customer.email,
-          p_delivery_address: customer.address ?? '', p_customer_comment: customer.comment ?? '', p_consent: customer.consent,
+          // Deprecated RPC parameter retained for migration compatibility; digital orders have no address.
+          p_delivery_address: null, p_customer_comment: customer.comment ?? '', p_consent: customer.consent,
           p_items: items, p_idempotency_key: request!.key,
         })
       : await client.rpc('place_public_order', {
           p_customer_name: customer.name, p_customer_phone: customer.phone ?? '', p_customer_email: customer.email,
-          p_delivery_address: customer.address ?? '', p_customer_comment: customer.comment ?? '', p_consent: customer.consent,
+          // Deprecated RPC parameter retained for migration compatibility; digital orders have no address.
+          p_delivery_address: null, p_customer_comment: customer.comment ?? '', p_consent: customer.consent,
           p_items: items,
         })
     const response = parseCheckoutRpcResponse(data, error)
@@ -87,7 +89,7 @@ async function placeRemote(cart: CartItem[], customer: { name: string; email: st
     const row = response.value as Record<string, any>
     const order: Order = {
       id: row.id, number: row.order_number, version: 1, createdAt: row.created_at, updatedAt: row.created_at,
-      customer: { name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone, address: customer.address, comment: customer.comment },
+      customer: { name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone, comment: customer.comment },
       consentAt: row.consent_at, items: (row.items ?? []).map((item: any) => ({ productId: item.product_id, title: item.product_name, platform: item.platform, unitPrice: Number(item.unit_price), quantity: Number(item.quantity), ...(item.region ? { region: item.region } : {}), denomination:item.denomination == null ? null : Number(item.denomination), denominationCurrency:item.denomination_currency ?? null })),
       total: Number(row.total_amount), currency: 'RUB', paymentStatus: 'unpaid', fulfillmentStatus: 'new', delivery: { note: '' },
       history: [{ id: `${row.id}-created`, type: 'created', at: row.created_at, actor: 'Покупатель', text: 'Заказ оформлен на сайте. Оплата не подключена.' }], isDemo: false, source: 'checkout',

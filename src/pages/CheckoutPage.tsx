@@ -25,7 +25,6 @@ export default function CheckoutPage() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [address, setAddress] = useState('')
   const [comment, setComment] = useState('')
   const [agree, setAgree] = useState(false)
   const [errors, setErrors] = useState<CheckoutErrors>({})
@@ -73,10 +72,10 @@ export default function CheckoutPage() {
     e.preventDefault()
     if (submitting.current) return
     setSubmitError(null)
-    const found = validateCheckout(name, email, agree, phone, address)
+    const found = validateCheckout(name, email, agree, phone)
     setErrors(found)
     if (Object.keys(found).length > 0) {
-      const firstId = found.name ? 'co-name' : found.phone ? 'co-phone' : found.email ? 'co-email' : found.address ? 'co-address' : 'co-agree'
+      const firstId = found.name ? 'co-name' : found.phone ? 'co-phone' : found.email ? 'co-email' : 'co-agree'
       formRef.current?.querySelector<HTMLElement>(`#${firstId}`)?.focus()
       return
     }
@@ -86,7 +85,7 @@ export default function CheckoutPage() {
     try {
       // Сервер проверяет активность вариантов и сам рассчитывает цены и итоговую сумму.
       const linkedUserId = user?.email_confirmed_at ? user.id : undefined
-      const result = await placeCheckoutOrder(items, { name, email, phone, address, comment, consent: agree }, undefined, getProduct, linkedUserId)
+      const result = await placeCheckoutOrder(items, { name, email, phone, comment, consent: agree }, undefined, getProduct, linkedUserId)
       if (!result.ok) {
         setSubmitError(result.error)
         return
@@ -156,11 +155,6 @@ export default function CheckoutPage() {
               className={inputClass}
             />
             {errorText('co-email-error', errors.email)}
-          </div>
-          <div>
-            <label htmlFor="co-address" className="mb-1.5 block text-sm font-semibold">Адрес / способ получения</label>
-            <input id="co-address" name="address" autoComplete="street-address" value={address} onChange={(e) => setAddress(e.target.value)} aria-invalid={Boolean(errors.address)} className={inputClass} />
-            {errorText('co-address-error', errors.address)}
           </div>
           <div>
             <label htmlFor="co-comment" className="mb-1.5 block text-sm font-semibold">Комментарий</label>

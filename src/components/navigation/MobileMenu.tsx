@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { NavLink, useLocation } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { Logo } from '../common/Logo'
@@ -27,6 +28,20 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
   useEffect(() => {
     if (!open) return
     const previous = document.activeElement as HTMLElement | null
+    const scrollY = window.scrollY
+    const originalStyles = {
+      position: document.body.style.position,
+      top: document.body.style.top,
+      left: document.body.style.left,
+      right: document.body.style.right,
+      width: document.body.style.width,
+      overflow: document.body.style.overflow,
+    }
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.left = '0'
+    document.body.style.right = '0'
+    document.body.style.width = '100%'
     document.body.style.overflow = 'hidden'
     panelRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus()
 
@@ -48,10 +63,15 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
         first.focus()
       }
     }
+    const desktop = window.matchMedia('(min-width: 1024px)')
+    const closeForDesktop = () => onClose()
+    desktop.addEventListener('change', closeForDesktop)
     document.addEventListener('keydown', onKey)
     return () => {
       document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
+      desktop.removeEventListener('change', closeForDesktop)
+      Object.assign(document.body.style, originalStyles)
+      window.scrollTo(0, scrollY)
       previous?.focus()
     }
   }, [open, onClose])
@@ -63,8 +83,8 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
       isActive ? 'border-red bg-steel text-white' : 'border-transparent text-silver hover:bg-graphite hover:text-white'
     }`
 
-  return (
-    <div className="fixed inset-0 z-[90] lg:hidden">
+  return createPortal((
+    <div id="mobile-navigation-menu" className="fixed inset-0 z-[1000] lg:hidden">
       <div className="absolute inset-0 bg-black/70" onClick={onClose} aria-hidden="true" />
       <div
         ref={panelRef}
@@ -86,7 +106,7 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
         </div>
         <nav aria-label="Основное меню" className="py-2">
           {mainNav.map((item) => (
-            <NavLink key={item.to} to={item.to} className={linkClass}>
+            <NavLink key={item.to} to={item.to} className={linkClass} onClick={onClose}>
               {item.label}
             </NavLink>
           ))}
@@ -96,6 +116,7 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
             <NavLink
               key={item.to}
               to={item.to}
+              onClick={onClose}
               className="flex min-h-11 items-center px-5 text-sm text-silver hover:text-white"
             >
               {item.label}
@@ -104,5 +125,5 @@ export function MobileMenu({ open, onClose }: MobileMenuProps) {
         </nav>
       </div>
     </div>
-  )
+  ), document.body)
 }

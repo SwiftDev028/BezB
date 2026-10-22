@@ -7,7 +7,6 @@ export const defaultFilters: CatalogFilters = {
   platform: 'all',
   region: 'all',
   brand: 'all',
-  denomination: 'all',
   minPrice: null,
   maxPrice: null,
   onlyAvailable: false,
@@ -20,12 +19,6 @@ export const sortLabels: Record<SortKey, string> = {
   'price-desc': 'Сначала дороже',
   new: 'Сначала новинки',
   title: 'По названию',
-}
-
-/** Ключ номинала: «100 TRY». У товаров без номинала — null. */
-export function denominationKey(p: Product): string | null {
-  if (p.denomination === null || p.denomination === undefined) return null
-  return `${p.denomination} ${p.denominationCurrency ?? ''}`.trim()
 }
 
 export function normalize(text: string): string {
@@ -66,7 +59,6 @@ export function filterProducts(products: Product[], filters: CatalogFilters): Pr
     if (filters.platform !== 'all' && p.platform !== filters.platform) return false
     if (filters.region !== 'all' && (p.country ?? '') !== filters.region) return false
     if (filters.brand !== 'all' && (p.brand ?? '') !== filters.brand) return false
-    if (filters.denomination !== 'all' && denominationKey(p) !== filters.denomination) return false
     if (filters.minPrice !== null && p.price < filters.minPrice) return false
     if (filters.maxPrice !== null && p.price > filters.maxPrice) return false
     if (filters.onlyAvailable && !p.available) return false

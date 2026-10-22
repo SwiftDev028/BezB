@@ -22,7 +22,6 @@ export function filtersFromParams(params: URLSearchParams, fixedCategory?: Categ
     platform: params.get('platform') || 'all',
     region: params.get('region') || 'all',
     brand: params.get('brand') || 'all',
-    denomination: params.get('denom') || 'all',
     minPrice: parseNumber(params.get('min')),
     maxPrice: parseNumber(params.get('max')),
     onlyAvailable: params.get('avail') === '1',
@@ -39,7 +38,6 @@ export function filtersToParams(filters: CatalogFilters, fixedCategory?: Categor
   if (filters.platform !== 'all') params.set('platform', filters.platform)
   if (filters.region !== 'all') params.set('region', filters.region)
   if (filters.brand !== 'all') params.set('brand', filters.brand)
-  if (filters.denomination !== 'all') params.set('denom', filters.denomination)
   if (filters.minPrice !== null) params.set('min', String(filters.minPrice))
   if (filters.maxPrice !== null) params.set('max', String(filters.maxPrice))
   if (filters.onlyAvailable) params.set('avail', '1')
