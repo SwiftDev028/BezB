@@ -101,7 +101,7 @@ export function BannerSlider() {
               onClick={() => go(i)}
               aria-label={`Слайд ${i + 1}: ${b.eyebrow}`}
               aria-current={i === index}
-              className="grid h-11 w-8 place-items-center"
+              className="grid h-11 w-11 place-items-center"
             >
               <span className={`block h-1.5 transition-all ${i === index ? 'w-8 bg-red' : 'w-4 bg-white/40 hover:bg-white/70'}`} />
             </button>

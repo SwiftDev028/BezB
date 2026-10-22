@@ -9,7 +9,7 @@ function LinkColumn({ title, items }: { title: string; items: { to: string; labe
       <ul className="space-y-1">
         {items.map((item) => (
           <li key={item.to}>
-            <Link to={item.to} className="inline-flex min-h-9 items-center text-sm text-silver hover:text-white">
+            <Link to={item.to} className="inline-flex min-h-11 items-center text-sm sm:min-h-9 text-silver hover:text-white">
               {item.label}
             </Link>
           </li>

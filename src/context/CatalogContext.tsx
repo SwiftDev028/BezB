@@ -13,7 +13,7 @@ export function mapCatalogRows(rows: Record<string, any>[]): Product[] {
     restrictions: Array.isArray(row.restrictions) ? row.restrictions : [], regions: undefined, available: row.availability === 'in_stock',
     popularity: Number(row.popularity ?? 0), addedAt: row.created_at ?? row.updated_at, tags: [row.brand, row.region].filter(Boolean),
     groupId: row.group_id, brand: row.brand, country: row.region || undefined,
-    denomination: row.denomination == null ? null : Number(row.denomination), denominationCurrency: row.denomination_currency,
+    denomination: row.denomination === null ? null : Number(row.denomination), denominationCurrency: row.denomination_currency,
     imageUrl: row.image_url, activationInstructions: row.activation_instructions ?? '',
   }))
   const regionsByGroup = new Map<string, string[]>()
@@ -23,26 +23,7 @@ export function mapCatalogRows(rows: Record<string, any>[]): Product[] {
     if (!regions.includes(product.country)) regions.push(product.country)
     regionsByGroup.set(product.groupId, regions)
   }
-  const withRegions = mapped.map((product) => ({ ...product, regions: product.groupId ? regionsByGroup.get(product.groupId) : undefined }))
-  return sortCatalogProducts(withRegions)
-}
-
-function sortCatalogProducts(products: Product[]): Product[] {
-  return [...products].sort((a, b) => {
-    const aHasDenomination = typeof a.denomination === 'number' && Number.isFinite(a.denomination)
-    const bHasDenomination = typeof b.denomination === 'number' && Number.isFinite(b.denomination)
-
-    if (aHasDenomination !== bHasDenomination) return aHasDenomination ? -1 : 1
-    if (!aHasDenomination || !bHasDenomination) return a.title.localeCompare(b.title, 'ru')
-
-    const regionOrder = (a.country ?? '').localeCompare(b.country ?? '', 'ru')
-    if (regionOrder !== 0) return regionOrder
-
-    const currencyOrder = (a.denominationCurrency ?? '').localeCompare(b.denominationCurrency ?? '', 'ru')
-    if (currencyOrder !== 0) return currencyOrder
-
-    return a.denomination! - b.denomination! || a.title.localeCompare(b.title, 'ru')
-  })
+  return mapped.map((product) => ({ ...product, regions: product.groupId ? regionsByGroup.get(product.groupId) : undefined }))
 }
 
 /** Resolve a catalog row by its variant ID/slug and, when supplied, exact region. */
@@ -59,34 +40,49 @@ export function findCatalogProduct(products: Product[], id: string, region?: str
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loadedOnce, setLoadedOnce] = useState(false)
+  const [fetching, setFetching] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const latestRequest = useRef(0)
-  const refresh = useCallback(async (signal?: AbortSignal) => {
-    const requestId = ++latestRequest.current
+  // Номер последнего запроса: ответ устаревшего запроса не должен перезаписать свежие данные
+  const lastRequest = useRef(0)
+
+  const refresh = useCallback(async () => {
     if (!supabaseConfigured) {
-      if (requestId === latestRequest.current && !signal?.aborted) { setError('Каталог Supabase не настроен.'); setLoading(false) }
+      setError('Каталог Supabase не настроен.')
+      setFetching(false)
       return
     }
-    setLoading(true)
+    const request = ++lastRequest.current
+    setFetching(true)
     try {
-      let query = requireSupabase().from('catalog_public').select('*').order('title')
-      if (signal) query = query.abortSignal(signal)
-      const { data, error: queryError } = await query
+      const { data, error: queryError } = await requireSupabase().from('catalog_public').select('*').order('title')
       if (queryError) throw queryError
-      if (requestId === latestRequest.current && !signal?.aborted) { setProducts(mapCatalogRows(data ?? [])); setError(null) }
+      if (request !== lastRequest.current) return
+      setProducts(mapCatalogRows(data ?? []))
+      setLoadedOnce(true)
+      setError(null)
     } catch (e) {
-      if (requestId === latestRequest.current && !signal?.aborted) setError(e instanceof Error ? e.message : 'Не удалось загрузить каталог.')
+      if (request !== lastRequest.current) return
+      setError(e instanceof Error ? e.message : 'Не удалось загрузить каталог.')
     } finally {
-      if (requestId === latestRequest.current && !signal?.aborted) setLoading(false)
+      if (request === lastRequest.current) setFetching(false)
     }
   }, [])
+
   useEffect(() => {
-    const controller = new AbortController()
-    void refresh(controller.signal)
-    return () => { controller.abort(); latestRequest.current += 1 }
+    void refresh()
+    return () => {
+      lastRequest.current++
+    }
   }, [refresh])
-  const value = useMemo<CatalogValue>(() => ({ products, loading, error, getProduct: (id, region) => findCatalogProduct(products, id, region), refresh: () => refresh() }), [products, loading, error, refresh])
+
+  // «Загрузка» — пока нет данных. Фоновое обновление (например, после правки в админке) интерфейс не мигает.
+  const loading = fetching && !loadedOnce
+  const getProduct = useCallback((id: string, region?: string) => findCatalogProduct(products, id, region), [products])
+  const value = useMemo<CatalogValue>(
+    () => ({ products, loading, error, getProduct, refresh }),
+    [products, loading, error, getProduct, refresh],
+  )
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>
 }
 

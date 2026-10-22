@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react'
+import { CatalogPending } from '../components/common/CatalogPending'
 import { EmptyState } from '../components/common/EmptyState'
 import { ProductArt } from '../components/common/ProductArt'
 import { btnPrimary } from '../components/common/ui'
@@ -12,14 +13,16 @@ import { formatPrice } from '../utils/format'
 
 export default function CartPage() {
   useDocumentTitle('Корзина')
-  const { items, remove, changeQuantity, clear } = useCart()
+  const { items, pending, remove, changeQuantity, clear } = useCart()
   const { getProduct } = useCatalog()
 
   return (
     <div className="container-x py-8 sm:py-12">
       <h1 className="mb-6 text-4xl sm:text-5xl">Корзина</h1>
 
-      {items.length === 0 ? (
+      {pending ? (
+        <CatalogPending />
+      ) : items.length === 0 ? (
         <EmptyState icon={ShoppingCart} title="Корзина пуста" text="Добавьте товары из каталога.">
           <Link to="/catalog" className={btnPrimary}>
             Перейти в каталог

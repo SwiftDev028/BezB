@@ -72,7 +72,9 @@ export function ProductCard({ product, layout = 'grid' }: ProductCardProps) {
         <div className={`flex gap-2 ${isList ? 'flex-col sm:flex-row' : 'flex-col min-[480px]:flex-row'}`}>
           {needsRegion && product.available ? (
             <Link to={href} className={`${btnPrimary} flex-1`}>
-              {variantAction}
+              {/* в двух узких колонках длинная подпись переносится на 3–4 строки */}
+              <span className="sm:hidden">Выбрать вариант</span>
+              <span className="hidden sm:inline">{variantAction}</span>
             </Link>
           ) : (
             <AddToCartButton

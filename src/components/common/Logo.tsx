@@ -12,7 +12,7 @@ export function Logo({ size = 'md', className = '' }: LogoProps) {
     <Link
       to="/"
       aria-label="BezB — на главную"
-      className={`group inline-flex items-center gap-2 ${className}`}
+      className={`group inline-flex min-h-11 items-center gap-2 ${className}`}
     >
       <span
         className={`font-display ${text} font-bold uppercase leading-none tracking-tight text-white`}
