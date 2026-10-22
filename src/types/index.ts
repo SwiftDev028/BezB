@@ -80,9 +80,12 @@ export interface CatalogFilters {
   category: CategoryId | 'all'
   type: ProductType | 'all'
   platform: string | 'all'
+  /** Регион активации, как в каталоге («Турция») */
   region: string | 'all'
-  /** Stable key combines face value and its currency, e.g. "25:USD". */
-  denomination: string | null
+  /** Сервис / бренд («ChatGPT», «Claude») */
+  brand: string | 'all'
+  /** Ключ номинала вида «100 TRY» */
+  denomination: string | 'all'
   minPrice: number | null
   maxPrice: number | null
   onlyAvailable: boolean

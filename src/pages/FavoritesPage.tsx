@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Heart } from 'lucide-react'
+import { CatalogPending } from '../components/common/CatalogPending'
 import { EmptyState } from '../components/common/EmptyState'
 import { btnPrimary } from '../components/common/ui'
 import { ProductGrid } from '../components/product/ProductGrid'
@@ -10,14 +11,16 @@ import type { Product } from '../types'
 
 export default function FavoritesPage() {
   useDocumentTitle('Избранное')
-  const { ids } = useFavorites()
+  const { ids, pending } = useFavorites()
   const { getProduct } = useCatalog()
   const items = ids.map((id) => getProduct(id)).filter((p): p is Product => Boolean(p))
 
   return (
     <div className="container-x py-8 sm:py-12">
       <h1 className="mb-6 text-4xl sm:text-5xl">Избранное</h1>
-      {items.length === 0 ? (
+      {pending ? (
+        <CatalogPending />
+      ) : items.length === 0 ? (
         <EmptyState
           icon={Heart}
           title="В избранном пока пусто"

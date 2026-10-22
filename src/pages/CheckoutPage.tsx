@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { CreditCard, Info, ShoppingCart } from 'lucide-react'
+import { CatalogPending } from '../components/common/CatalogPending'
 import { EmptyState } from '../components/common/EmptyState'
 import { btnPrimary, btnSecondary, inputClass } from '../components/common/ui'
 import { CheckoutResult } from '../components/product/CheckoutResult'
@@ -18,7 +19,7 @@ import { useCatalog } from '../context/CatalogContext'
 
 export default function CheckoutPage() {
   useDocumentTitle('Оформление заказа')
-  const { items, clear } = useCart()
+  const { items, pending, clear } = useCart()
   const { user, loading: authLoading } = useAuth()
   const { getProduct } = useCatalog()
   const [name, setName] = useState('')
@@ -45,6 +46,15 @@ export default function CheckoutPage() {
   if (placed) return <CheckoutResult order={placed} />
 
   if (authLoading) return <div className="container-x py-12" role="status">Проверяем аккаунт…</div>
+
+  if (pending) {
+    return (
+      <div className="container-x py-8 sm:py-12">
+        <h1 className="mb-6 text-4xl sm:text-5xl">Оформление заказа</h1>
+        <CatalogPending />
+      </div>
+    )
+  }
 
   if (items.length === 0) {
     return (

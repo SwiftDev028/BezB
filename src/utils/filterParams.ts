@@ -19,9 +19,10 @@ export function filtersFromParams(params: URLSearchParams, fixedCategory?: Categ
     query: params.get('q') ?? '',
     category: fixedCategory ?? (categoryIds.includes(cat as CategoryId) ? (cat as CategoryId) : 'all'),
     type: typeIds.includes(type as ProductType) ? (type as ProductType) : 'all',
-    platform: params.get('platform') ?? 'all',
-    region: params.get('region') ?? 'all',
-    denomination: params.get('den') ?? null,
+    platform: params.get('platform') || 'all',
+    region: params.get('region') || 'all',
+    brand: params.get('brand') || 'all',
+    denomination: params.get('denom') || 'all',
     minPrice: parseNumber(params.get('min')),
     maxPrice: parseNumber(params.get('max')),
     onlyAvailable: params.get('avail') === '1',
@@ -37,7 +38,8 @@ export function filtersToParams(filters: CatalogFilters, fixedCategory?: Categor
   if (filters.type !== 'all') params.set('type', filters.type)
   if (filters.platform !== 'all') params.set('platform', filters.platform)
   if (filters.region !== 'all') params.set('region', filters.region)
-  if (filters.denomination !== null) params.set('den', filters.denomination)
+  if (filters.brand !== 'all') params.set('brand', filters.brand)
+  if (filters.denomination !== 'all') params.set('denom', filters.denomination)
   if (filters.minPrice !== null) params.set('min', String(filters.minPrice))
   if (filters.maxPrice !== null) params.set('max', String(filters.maxPrice))
   if (filters.onlyAvailable) params.set('avail', '1')

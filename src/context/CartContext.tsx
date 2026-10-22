@@ -6,6 +6,8 @@ import { useLocalStorage } from '../hooks/useLocalStorage'
 
 interface CartContextValue {
   items: CartItem[]
+  /** Каталог ещё грузится или не загрузился, а в корзине что-то сохранено: состав показать пока нельзя */
+  pending: boolean
   count: number
   total: number
   add: (productId: string, region?: string) => void
@@ -17,11 +19,12 @@ interface CartContextValue {
 const CartContext = createContext<CartContextValue | null>(null)
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { getProduct } = useCatalog()
+  const { getProduct, loading, error } = useCatalog()
   const [items, update] = useLocalStorage<CartItem[]>('bezb:cart', [], parseCartItems)
 
   // Позиции, которых больше нет в каталоге, не учитываем и не показываем
   const validItems = useMemo(() => items.filter((i) => getProduct(i.productId, i.region ?? '')), [items, getProduct])
+  const pending = items.length > 0 && validItems.length === 0 && (loading || Boolean(error))
 
   const add = useCallback(
     (productId: string, region?: string) => update((prev) => addItem(prev, productId, region)),
@@ -37,14 +40,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const value = useMemo<CartContextValue>(
     () => ({
       items: validItems,
-      count: cartCount(validItems),
+      pending,
+      // Пока каталог не загрузился, показываем число сохранённых позиций, а не 0
+      count: pending ? cartCount(items) : cartCount(validItems),
       total: cartTotal(validItems, getProduct),
       add,
       remove,
       changeQuantity,
       clear,
     }),
-    [validItems, getProduct, add, remove, changeQuantity, clear],
+    [validItems, items, pending, getProduct, add, remove, changeQuantity, clear],
   )
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
