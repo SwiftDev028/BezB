@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { subscriptionTerm } from './catalog'
 import { products } from '../data/products'
 import { defaultFilters, filterProducts, matchesQuery, sortProducts, suggest } from './catalog'
 import type { CatalogFilters } from '../types'
@@ -6,6 +7,13 @@ import type { CatalogFilters } from '../types'
 const f = (patch: Partial<CatalogFilters>): CatalogFilters => ({ ...defaultFilters, ...patch })
 
 describe('каталог', () => {
+  it('форматирует структурированный срок и бонусные месяцы, не читая denomination', () => {
+    expect(subscriptionTerm({ subscriptionMonths: 1, subscriptionBonusMonths: 0 })).toBe('1 месяц')
+    expect(subscriptionTerm({ subscriptionMonths: 3, subscriptionBonusMonths: 0 })).toBe('3 месяца')
+    expect(subscriptionTerm({ subscriptionMonths: 12, subscriptionBonusMonths: 1 })).toBe('12 месяцев + 1 бонусный месяц')
+    expect(subscriptionTerm({ subscriptionMonths: null, subscriptionBonusMonths: 0 })).toBeNull()
+  })
+
   it('без фильтров возвращает все товары', () => {
     expect(filterProducts(products, defaultFilters)).toHaveLength(products.length)
   })

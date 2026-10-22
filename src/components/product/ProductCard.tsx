@@ -7,6 +7,7 @@ import { AddToCartButton } from './AddToCartButton'
 import { Badge } from './Badge'
 import { FavoriteButton } from './FavoriteButton'
 import { Price } from './Price'
+import { subscriptionTerm } from '../../utils/catalog'
 
 interface ProductCardProps {
   product: Product
@@ -28,6 +29,7 @@ export function ProductCard({ product, layout = 'grid' }: ProductCardProps) {
         : 'Выбрать вариант'
   const variantDetails = [
     product.country ? `Регион: ${product.country}` : null,
+    subscriptionTerm(product) ? `Срок: ${subscriptionTerm(product)}` : null,
     hasDenomination
       ? `Номинал: ${product.denomination} ${product.denominationCurrency ?? ''}`.trim()
       : null,

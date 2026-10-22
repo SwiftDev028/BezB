@@ -36,6 +36,9 @@ export interface Product {
   country?: string
   denomination?: number | null
   denominationCurrency?: string | null
+  /** Structured subscription term; bonus months are promotional and not charged separately. */
+  subscriptionMonths?: number | null
+  subscriptionBonusMonths?: number
   imageUrl?: string | null
   activationInstructions?: string
 }

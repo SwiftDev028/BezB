@@ -15,6 +15,8 @@ export interface AdminProduct {
   product_type: string
   denomination: number | string | null
   denomination_currency: string | null
+  subscription_months?: number | string | null
+  subscription_bonus_months?: number | string | null
   unit_price: number | string
   availability: Availability
   publication_status: Publication
@@ -71,9 +73,10 @@ export function slugify(text: string): string {
 }
 
 /** Предлагаемые SKU и slug нового варианта из названия, региона и номинала. */
-export function suggestIds(title: string, region: string, denomination: string, currency: string) {
+export function suggestIds(title: string, region: string, denomination: string, currency: string, months = '', bonusMonths = '') {
   const base = slugify(title)
-  const parts = [base, slugify(region), denomination.trim() ? slugify(`${denomination} ${currency}`) : ''].filter(Boolean)
+  const term = months.trim() ? `${months.trim()}-months${bonusMonths.trim() && Number(bonusMonths) > 0 ? `-bonus-${bonusMonths.trim()}` : ''}` : ''
+  const parts = [base, slugify(region), denomination.trim() ? slugify(`${denomination} ${currency}`) : '', term].filter(Boolean)
   const slug = parts.join('-')
   return { product_id: slug, slug }
 }
@@ -82,6 +85,7 @@ export interface Cost {
   cost: number
   currency: string
   supplier: string
+  status: 'confirmed'
 }
 
 interface MappingRow {
@@ -89,15 +93,17 @@ interface MappingRow {
   region: string
   purchase_cost: number | string
   purchase_currency: string
+  purchase_cost_status?: 'confirmed' | 'estimate' | 'unverified' | null
   suppliers?: { name?: string; status?: string } | null
 }
 
-/** Лучшая (минимальная) закупочная цена по варианту среди активных поставщиков. */
+/** Лучшая подтверждённая цена по варианту среди supplier-linked и внутренних записей. */
 export function bestCosts(mappings: MappingRow[]): Map<string, Cost> {
   const result = new Map<string, Cost>()
   for (const m of mappings) {
+    if (m.purchase_cost_status !== 'confirmed') continue
     if (m.suppliers?.status && m.suppliers.status !== 'active') continue
-    const entry: Cost = { cost: Number(m.purchase_cost), currency: m.purchase_currency, supplier: m.suppliers?.name ?? '' }
+    const entry: Cost = { cost: Number(m.purchase_cost), currency: m.purchase_currency, supplier: m.suppliers?.name ?? '', status: 'confirmed' }
     const key = variantKey(m)
     const current = result.get(key)
     // сравниваем только одну валюту; рублёвая закупка приоритетнее — по ней считается маржа
@@ -189,6 +195,8 @@ export interface ProductForm {
   region: string
   denomination: string
   denomination_currency: string
+  subscription_months: string
+  subscription_bonus_months: string
   unit_price: string
   image_url: string
   description: string
@@ -217,6 +225,18 @@ export function validateProductForm(f: ProductForm): FormErrors {
   } else if (f.denomination_currency.trim()) {
     e.denomination = 'Укажите номинал или очистите валюту.'
   }
+  if (f.subscription_months.trim() !== '') {
+    const months = Number(f.subscription_months)
+    if (!Number.isInteger(months) || months < 1 || months > 120) e.subscription_months = 'Срок должен быть целым числом от 1 до 120 месяцев.'
+  }
+  if (f.subscription_bonus_months.trim() !== '') {
+    const bonus = Number(f.subscription_bonus_months)
+    if (!Number.isInteger(bonus) || bonus < 0 || bonus > 120) e.subscription_bonus_months = 'Бонусный срок должен быть целым числом от 0 до 120 месяцев.'
+    else if (!f.subscription_months.trim()) e.subscription_months = 'Укажите основной срок подписки для бонусных месяцев.'
+  }
+  if (f.product_type !== 'subscription' && (f.subscription_months.trim() || f.subscription_bonus_months.trim())) {
+    e.subscription_months = 'Срок можно указать только для подписки.'
+  }
   if (f.image_url.trim() && !/^https:\/\/\S+$/i.test(f.image_url.trim())) e.image_url = 'Ссылка должна начинаться с https://'
   return e
 }
@@ -228,9 +248,10 @@ export function publishWarnings(f: ProductForm, cost: Cost | undefined): string[
   if (!f.image_url.trim()) warnings.push('У товара нет изображения.')
   if (!f.description.trim()) warnings.push('Нет описания.')
   if (!f.activation_instructions.trim()) warnings.push('Нет инструкции по активации.')
+  if (f.product_type === 'subscription' && !f.subscription_months.trim()) warnings.push('Не указан структурированный срок подписки.')
   const m = margin(Number(f.unit_price), cost)
   if (m && m.profit <= 0) warnings.push('Цена продажи не выше закупочной: товар продаётся без прибыли или в убыток.')
-  if (!cost) warnings.push('Не указана закупочная стоимость (раздел «Поставщики»).')
+  if (!cost) warnings.push('Не указана подтверждённая закупочная стоимость (раздел «Поставщики»).')
   return warnings
 }
 

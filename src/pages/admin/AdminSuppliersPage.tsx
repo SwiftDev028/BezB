@@ -9,12 +9,20 @@ import { describeError, margin, variantKey } from '../../utils/adminCatalog'
 import { formatPrice } from '../../utils/format'
 
 type Row = Record<string, any>
+type CostStatus = 'confirmed' | 'estimate' | 'unverified'
+
+const costStatusLabels: Record<CostStatus, string> = {
+  confirmed: 'Подтверждена',
+  estimate: 'Предварительная оценка',
+  unverified: 'Не проверена',
+}
 
 export default function AdminSuppliersPage() {
   useDocumentTitle('Админ: поставщики')
   const [suppliers, setSuppliers] = useState<Row[]>([])
   const [variants, setVariants] = useState<Row[]>([])
   const [mappings, setMappings] = useState<Row[]>([])
+  const [internalCosts, setInternalCosts] = useState<Row[]>([])
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
@@ -26,13 +34,14 @@ export default function AdminSuppliersPage() {
   const load = useCallback(async () => {
     try {
       const db = requireSupabase()
-      const [s, p, m] = await Promise.all([
+      const [s, p, m, internal] = await Promise.all([
         db.from('suppliers').select('*').order('name'),
         db.from('products').select('product_id,region,title,brand,unit_price').order('title'),
         db.from('supplier_products').select('*,suppliers(name),products(title)').order('cost_updated_at', { ascending: false }),
+        db.from('internal_purchase_costs').select('*,products(title)').order('cost_updated_at', { ascending: false }),
       ])
-      for (const r of [s, p, m]) if (r.error) throw r.error
-      setSuppliers(s.data ?? []); setVariants(p.data ?? []); setMappings(m.data ?? [])
+      for (const r of [s, p, m, internal]) if (r.error) throw r.error
+      setSuppliers(s.data ?? []); setVariants(p.data ?? []); setMappings(m.data ?? []); setInternalCosts(internal.data ?? [])
     } catch (e) {
       setError(describeError(e, 'Не удалось загрузить поставщиков.'))
     }
@@ -40,13 +49,17 @@ export default function AdminSuppliersPage() {
   useEffect(() => { void load() }, [load])
 
   const priceByVariant = useMemo(() => new Map(variants.map((v) => [variantKey(v as never), Number(v.unit_price)])), [variants])
+  const costRows = useMemo<Row[]>(() => [
+    ...mappings.map((m) => ({ ...m, cost_source: 'supplier' })),
+    ...internalCosts.map((m) => ({ ...m, id: `internal:${m.product_id}|${m.region}`, cost_source: 'internal', suppliers: null, supplier_sku: null })),
+  ], [mappings, internalCosts])
   const shownMappings = useMemo(() => {
     const words = query.toLowerCase().split(/\s+/).filter(Boolean)
-    return mappings.filter((m) => {
+    return costRows.filter((m) => {
       const hay = [m.products?.title, m.product_id, m.region, m.suppliers?.name, m.supplier_sku].join(' ').toLowerCase()
       return words.every((w) => hay.includes(w))
     })
-  }, [mappings, query])
+  }, [costRows, query])
 
   const run = async (action: () => Promise<void>, success: string) => {
     setBusy(true); setError(''); setNotice('')
@@ -69,7 +82,7 @@ export default function AdminSuppliersPage() {
         actions={
           <>
             <button type="button" className={btnSecondary} onClick={() => setDialog('supplier')}><Plus className="size-5" aria-hidden="true" />Поставщик</button>
-            <button type="button" className={btnPrimary} onClick={() => setDialog('mapping')} disabled={!suppliers.length || !variants.length}><Plus className="size-5" aria-hidden="true" />Закупочная цена</button>
+            <button type="button" className={btnPrimary} onClick={() => setDialog('mapping')} disabled={!variants.length}><Plus className="size-5" aria-hidden="true" />Закупочная цена</button>
           </>
         }
       />
@@ -104,21 +117,22 @@ export default function AdminSuppliersPage() {
         <input id="sup-q" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Товар, поставщик, артикул" className={`${inputClass} pl-9`} />
       </div>
       {shownMappings.length === 0 ? (
-        <EmptyState icon={Truck} title={mappings.length === 0 ? 'Закупочных цен пока нет' : 'Ничего не найдено'} text={mappings.length === 0 ? 'Сопоставьте товар с поставщиком, чтобы видеть маржу в каталоге.' : 'Измените запрос.'} />
+        <EmptyState icon={Truck} title={costRows.length === 0 ? 'Закупочных цен пока нет' : 'Ничего не найдено'} text={costRows.length === 0 ? 'Сопоставьте товар с поставщиком или проверьте внутреннюю себестоимость.' : 'Измените запрос.'} />
       ) : (
         <div>
           <div aria-hidden="true" className="hidden grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_8rem_8rem_7rem_9rem] gap-3 border-b border-line px-3 pb-2 text-xs uppercase tracking-wider text-silver lg:grid">
-            <span>Товар / вариант</span><span>Поставщик · артикул</span><span>Себестоимость</span><span>Цена продажи</span><span>Маржа</span><span className="text-right">Действие</span>
+            <span>Товар / вариант</span><span>Источник / артикул</span><span>Себестоимость</span><span>Цена продажи</span><span>Маржа</span><span className="text-right">Действие</span>
           </div>
           <ul className="divide-y divide-line border border-line bg-coal lg:border-t-0">
             {shownMappings.map((m) => {
               const price = priceByVariant.get(variantKey(m as never))
-              const mg = price ? margin(price, { cost: Number(m.purchase_cost), currency: m.purchase_currency, supplier: '' }) : null
+              const costStatus = (m.purchase_cost_status ?? 'unverified') as CostStatus
+              const mg = price && costStatus === 'confirmed' ? margin(price, { cost: Number(m.purchase_cost), currency: m.purchase_currency, supplier: '', status: 'confirmed' }) : null
               return (
                 <li key={m.id} className="grid items-center gap-x-3 gap-y-1 p-3 text-sm lg:grid-cols-[minmax(0,2fr)_minmax(0,1.2fr)_8rem_8rem_7rem_9rem]">
                   <p className="min-w-0 break-words"><strong>{m.products?.title ?? m.product_id}</strong><span className="block text-xs text-silver">{m.region || 'без региона'} · {m.product_id}</span></p>
-                  <p className="min-w-0 break-words text-silver">{m.suppliers?.name}<span className="block break-all text-xs">{m.supplier_sku}</span></p>
-                  <p><span className="mr-2 text-xs uppercase text-silver lg:hidden">Себестоимость</span><strong>{m.purchase_cost} {m.purchase_currency}</strong><span className="block text-xs text-silver">обновлено {new Date(m.cost_updated_at).toLocaleDateString('ru-RU')}</span></p>
+                  <p className="min-w-0 break-words text-silver">{m.cost_source === 'internal' ? 'Внутренний учёт BezB' : m.suppliers?.name}<span className="block break-all text-xs">{m.supplier_sku ?? ''}</span></p>
+                  <p><span className="mr-2 text-xs uppercase text-silver lg:hidden">Себестоимость</span><strong>{m.purchase_cost} {m.purchase_currency}</strong><Tag tone={costStatus === 'confirmed' ? 'strong' : 'muted'}>{costStatusLabels[costStatus]}</Tag><span className="block text-xs text-silver">обновлено {new Date(m.cost_updated_at).toLocaleDateString('ru-RU')}</span></p>
                   <p><span className="mr-2 text-xs uppercase text-silver lg:hidden">Цена продажи</span>{price ? formatPrice(price) : '—'}</p>
                   <p className={mg && mg.profit <= 0 ? 'text-red-hot' : ''}><span className="mr-2 text-xs uppercase text-silver lg:hidden">Маржа</span>{mg ? `${mg.percent.toFixed(0)}%` : '—'}</p>
                   <div className="lg:text-right"><button type="button" className="min-h-11 border border-line bg-graphite px-3 hover:border-silver" onClick={() => setEditing(m)}>Изменить закупку</button></div>
@@ -135,8 +149,13 @@ export default function AdminSuppliersPage() {
       {dialog === 'mapping' && <MappingDialog busy={busy} suppliers={suppliers.filter((s) => s.status === 'active')} variants={variants} onClose={() => setDialog(null)} onSubmit={(v) => run(async () => {
         const { error: e } = await requireSupabase().from('supplier_products').insert(v); if (e) throw e
       }, 'Закупочная цена сохранена.').then((ok) => ok && setDialog(null))} />}
-      {editing && <CostDialog row={editing} busy={busy} onClose={() => setEditing(null)} onSubmit={(cost) => run(async () => {
-        const { error: e } = await requireSupabase().from('supplier_products').update({ purchase_cost: cost, cost_updated_at: new Date().toISOString() }).eq('id', editing.id); if (e) throw e
+      {editing && <CostDialog row={editing} busy={busy} onClose={() => setEditing(null)} onSubmit={(cost, status) => run(async () => {
+        const db = requireSupabase()
+        const update = { purchase_cost: cost, purchase_cost_status: status, cost_updated_at: new Date().toISOString() }
+        const result = editing.cost_source === 'internal'
+          ? await db.from('internal_purchase_costs').update(update).eq('product_id', editing.product_id).eq('region', editing.region)
+          : await db.from('supplier_products').update(update).eq('id', editing.id)
+        if (result.error) throw result.error
       }, 'Закупочная стоимость обновлена.').then((ok) => ok && setEditing(null))} />}
       {deactivating && (
         <ConfirmDialog title="Отключить поставщика?" confirmLabel="Отключить" busy={busy} onCancel={() => setDeactivating(null)} onConfirm={() => void toggleSupplier(deactivating).then(() => setDeactivating(null))}>
@@ -164,17 +183,18 @@ function SupplierDialog({ busy, onClose, onSubmit }: { busy: boolean; onClose: (
 function MappingDialog({ busy, suppliers, variants, onClose, onSubmit }: { busy: boolean; suppliers: Row[]; variants: Row[]; onClose: () => void; onSubmit: (v: Row) => void }) {
   const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? '')
   const [variant, setVariant] = useState(variants[0] ? variantKey(variants[0] as never) : '')
-  const [sku, setSku] = useState(''); const [cost, setCost] = useState(''); const [currency, setCurrency] = useState('RUB'); const [note, setNote] = useState('')
+  const [sku, setSku] = useState(''); const [cost, setCost] = useState(''); const [currency, setCurrency] = useState('RUB'); const [status, setStatus] = useState<CostStatus>('unverified'); const [note, setNote] = useState('')
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const [product_id, region] = variant.split('|')
-    onSubmit({ supplier_id: supplierId, product_id, region, supplier_sku: sku.trim(), purchase_cost: Number(cost), purchase_currency: currency, internal_notes: note })
+    onSubmit({ supplier_id: supplierId, product_id, region, supplier_sku: sku.trim(), purchase_cost: Number(cost), purchase_currency: currency, purchase_cost_status: status, internal_notes: note })
   }
   return (
     <Modal wide title="Закупочная цена (себестоимость)" onClose={onClose} footer={<><button type="button" className={btnSecondary} onClick={onClose}>Отмена</button><button type="submit" form="mapping-form" className={btnPrimary} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить'}</button></>}>
       <form id="mapping-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
         <Field label="Поставщик" htmlFor="map-sup"><select id="map-sup" required value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={inputClass}>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <Field label="Вариант товара BezB" htmlFor="map-var"><select id="map-var" required value={variant} onChange={(e) => setVariant(e.target.value)} className={inputClass}>{variants.map((p) => <option key={variantKey(p as never)} value={variantKey(p as never)}>{p.title} · {p.region || 'без региона'}</option>)}</select></Field>
+        <Field label="Статус цены" htmlFor="map-status"><select id="map-status" value={status} onChange={(e) => setStatus(e.target.value as CostStatus)} className={inputClass}><option value="unverified">Не проверена</option><option value="estimate">Предварительная оценка</option><option value="confirmed">Подтверждена</option></select></Field>
         <Field label="Артикул поставщика" htmlFor="map-sku"><input id="map-sku" required value={sku} onChange={(e) => setSku(e.target.value)} className={inputClass} /></Field>
         <div className="grid grid-cols-[1fr_6rem] gap-3">
           <Field label="Закупка" htmlFor="map-cost"><input id="map-cost" required min="0" step="0.01" type="number" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} className={inputClass} /></Field>
@@ -186,14 +206,16 @@ function MappingDialog({ busy, suppliers, variants, onClose, onSubmit }: { busy:
   )
 }
 
-function CostDialog({ row, busy, onClose, onSubmit }: { row: Row; busy: boolean; onClose: () => void; onSubmit: (cost: number) => void }) {
+function CostDialog({ row, busy, onClose, onSubmit }: { row: Row; busy: boolean; onClose: () => void; onSubmit: (cost: number, status: CostStatus) => void }) {
   const [value, setValue] = useState(String(row.purchase_cost))
+  const [status, setStatus] = useState<CostStatus>((row.purchase_cost_status ?? 'unverified') as CostStatus)
   const cost = Number(value)
   const valid = value.trim() !== '' && Number.isFinite(cost) && cost >= 0
   return (
     <Modal title="Закупочная стоимость" onClose={onClose} footer={<><button type="button" className={btnSecondary} onClick={onClose}>Отмена</button><button type="submit" form="cost-form" className={btnPrimary} disabled={busy || !valid}>{busy ? 'Сохраняем…' : 'Сохранить'}</button></>}>
-      <form id="cost-form" onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit(cost) }} className="space-y-3">
-        <p className="text-sm text-silver">{row.products?.title ?? row.product_id} · {row.region || 'без региона'} · {row.suppliers?.name}</p>
+      <form id="cost-form" onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit(cost, status) }} className="space-y-3">
+        <p className="text-sm text-silver">{row.products?.title ?? row.product_id} · {row.region || 'без региона'} · {row.suppliers?.name ?? 'поставщик не привязан'}</p>
+        <Field label="Статус цены" htmlFor="cost-status"><select id="cost-status" value={status} onChange={(e) => setStatus(e.target.value as CostStatus)} className={inputClass}><option value="unverified">Не проверена</option><option value="estimate">Предварительная оценка</option><option value="confirmed">Подтверждена</option></select></Field>
         <Field label={`Новая себестоимость, ${row.purchase_currency}`} htmlFor="cost-v" error={valid ? undefined : 'Укажите число не меньше нуля.'} hint={`Сейчас: ${row.purchase_cost} ${row.purchase_currency}. Цену продажи это не меняет.`}>
           <input id="cost-v" type="number" inputMode="decimal" min="0" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} autoFocus />
         </Field>

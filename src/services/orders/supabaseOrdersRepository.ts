@@ -8,7 +8,7 @@ function fromDb(row: DbOrder): Order {
   const meta = row.admin_metadata ?? {}
   const items = (row.order_items ?? []).map((i: DbOrder) => {
     const [title, platform = ''] = String(i.product_name).split(' · ')
-    return { id: i.id, productId: i.product_id, title, platform: i.platform ?? platform, unitPrice: Number(i.unit_price), quantity: Number(i.quantity), ...(i.region ? { region: i.region } : {}), denomination: i.denomination === null ? null : Number(i.denomination), denominationCurrency: i.denomination_currency ?? null }
+    return { id: i.id, productId: i.product_id, title, platform: i.platform ?? platform, unitPrice: Number(i.unit_price), quantity: Number(i.quantity), ...(i.region ? { region: i.region } : {}), denomination: i.denomination === null ? null : Number(i.denomination), denominationCurrency: i.denomination_currency ?? null, subscriptionMonths: i.subscription_months == null ? null : Number(i.subscription_months), subscriptionBonusMonths: Number(i.subscription_bonus_months ?? 0) }
   })
   const status = row.status
   const fulfillmentStatus = row.fulfillment_status ?? (status === 'confirmed' || status === 'processing' ? 'processing' : status === 'shipped' || status === 'completed' ? 'delivered' : status === 'cancelled' ? 'cancelled' : 'new')

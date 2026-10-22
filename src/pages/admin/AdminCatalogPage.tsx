@@ -53,6 +53,8 @@ function toForm(p: AdminProduct): ProductForm {
     region: p.region ?? '',
     denomination: p.denomination === null || p.denomination === undefined ? '' : String(Number(p.denomination)),
     denomination_currency: p.denomination_currency ?? '',
+    subscription_months: p.subscription_months == null ? '' : String(Number(p.subscription_months)),
+    subscription_bonus_months: Number(p.subscription_bonus_months ?? 0) === 0 ? '' : String(Number(p.subscription_bonus_months)),
     unit_price: String(p.unit_price),
     image_url: p.image_url ?? '',
     description: p.description ?? '',
@@ -89,14 +91,22 @@ export default function AdminCatalogPage() {
     setLoading(true)
     try {
       const db = requireSupabase()
-      const [products, mappings] = await Promise.all([
+      const [products, mappings, internalCosts] = await Promise.all([
         db.from('products').select('*').order('brand').order('title'),
-        db.from('supplier_products').select('product_id,region,purchase_cost,purchase_currency,suppliers(name,status)'),
+        db.from('supplier_products').select('product_id,region,purchase_cost,purchase_currency,purchase_cost_status,suppliers(name,status)'),
+        db.from('internal_purchase_costs').select('product_id,region,purchase_cost,purchase_currency,purchase_cost_status'),
       ])
       if (products.error) throw products.error
       setRows((products.data ?? []) as AdminProduct[])
-      // Себестоимость — справочная информация: если закупки недоступны, товары всё равно показываем
-      setCosts(mappings.error ? new Map() : bestCosts((mappings.data ?? []) as never[]))
+      // Себестоимость — справочная информация: если запросы затрат недоступны, товары всё равно показываем.
+      const mappedCosts = [
+        ...(mappings.error ? [] : mappings.data ?? []),
+        ...(internalCosts.error ? [] : (internalCosts.data ?? []).map((cost) => ({
+          ...cost,
+          suppliers: { name: 'Внутренний учёт', status: 'active' },
+        }))),
+      ]
+      setCosts(bestCosts(mappedCosts as never[]))
       setError('')
     } catch (e) {
       setError(describeError(e, 'Не удалось загрузить товары.'))

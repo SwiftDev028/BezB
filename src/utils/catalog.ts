@@ -25,6 +25,22 @@ export function normalize(text: string): string {
   return text.toLowerCase().replace(/ё/g, 'е').trim()
 }
 
+function monthWord(count: number): string {
+  const lastTwo = count % 100
+  const last = count % 10
+  if (lastTwo >= 11 && lastTwo <= 14) return 'месяцев'
+  if (last === 1) return 'месяц'
+  if (last >= 2 && last <= 4) return 'месяца'
+  return 'месяцев'
+}
+
+export function subscriptionTerm(product: Pick<Product, 'subscriptionMonths' | 'subscriptionBonusMonths'>): string | null {
+  if (!product.subscriptionMonths || product.subscriptionMonths < 1) return null
+  const base = `${product.subscriptionMonths} ${monthWord(product.subscriptionMonths)}`
+  const bonus = product.subscriptionBonusMonths ?? 0
+  return bonus > 0 ? `${base} + ${bonus} бонусн${bonus === 1 ? 'ый' : 'ых'} ${monthWord(bonus)}` : base
+}
+
 /** Все слова запроса должны встретиться в названии, описании, платформе или тегах. */
 export function matchesQuery(product: Product, query: string): boolean {
   const words = normalize(query).split(/\s+/).filter(Boolean)

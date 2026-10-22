@@ -12,6 +12,7 @@ import { FavoriteButton } from '../components/product/FavoriteButton'
 import { Price } from '../components/product/Price'
 import { ProductGrid } from '../components/product/ProductGrid'
 import { inputClass } from '../components/common/ui'
+import { subscriptionTerm } from '../utils/catalog'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import NotFoundPage from './NotFoundPage'
 
@@ -78,7 +79,7 @@ export default function ProductPage() {
           {variants.length > 1 && (
             <div className="mt-6 max-w-xs">
               <label htmlFor="variant" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-silver">
-                Регион и номинал
+                Вариант товара
               </label>
               <select
                 id="variant"
@@ -88,7 +89,7 @@ export default function ProductPage() {
               >
                 {variants.map((variant) => (
                   <option key={variant.slug} value={variant.slug}>
-                    {[variant.country, variant.denomination !== null && variant.denomination !== undefined ? `${variant.denomination} ${variant.denominationCurrency ?? ''}` : ''].filter(Boolean).join(' · ')} — {variant.price} RUB
+                    {[variant.country, subscriptionTerm(variant), variant.denomination !== null && variant.denomination !== undefined ? `${variant.denomination} ${variant.denominationCurrency ?? ''}` : ''].filter(Boolean).join(' · ')} — {variant.price} RUB
                   </option>
                 ))}
               </select>
@@ -116,6 +117,7 @@ export default function ProductPage() {
                 <dt className="font-semibold text-white">Платформа и регион</dt>
                 <dd className="mt-1 text-sm text-silver">
                   {product.platform}
+                  {subscriptionTerm(product) ? ` · Срок: ${subscriptionTerm(product)}` : ''}
                   {product.country ? ` · Регион: ${product.country}` : ''}{product.denomination !== null && product.denomination !== undefined ? ` · Номинал: ${product.denomination} ${product.denominationCurrency ?? ''}` : ''}
                 </dd>
               </div>

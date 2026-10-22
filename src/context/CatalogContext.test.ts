@@ -24,4 +24,16 @@ describe('regional catalog variants', () => {
     const products = mapCatalogRows([row('US', 1000, 'gift-card-us'), row('TR', 350, 'gift-card-tr')])
     expect(findCatalogProduct(products, 'gift-card', 'JP')).toBeUndefined()
   })
+
+  it('maps structured subscription terms from the public catalog rows', () => {
+    const products = mapCatalogRows([{
+      ...row('', 10990, 'game-pass-ultimate-12'),
+      denomination: null,
+      denomination_currency: null,
+      product_type: 'subscription',
+      subscription_months: 12,
+      subscription_bonus_months: 1,
+    }])
+    expect(products[0]).toMatchObject({ subscriptionMonths: 12, subscriptionBonusMonths: 1, denomination: null })
+  })
 })

@@ -5,6 +5,7 @@ import { formatDateTime } from '../../utils/formatDate'
 import { formatPrice } from '../../utils/format'
 import { FulfillmentBadge, PaymentBadge } from '../admin/StatusBadge'
 import { btnSecondary } from '../common/ui'
+import { subscriptionTerm } from '../../utils/catalog'
 
 /** Подтверждение сохранённого заказа; оплата и выдача не выполняются. */
 export function CheckoutResult({ order }: { order: Order }) {
@@ -40,6 +41,7 @@ export function CheckoutResult({ order }: { order: Order }) {
                   <span className="block text-xs text-silver">
                     {i.quantity} × {formatPrice(i.unitPrice, order.currency)}
                     {i.region ? ` · регион: ${i.region}` : ''}
+                    {subscriptionTerm(i) ? ` · срок: ${subscriptionTerm(i)}` : ''}
                   </span>
                 </span>
                 <span className="shrink-0 font-semibold">{formatPrice(i.unitPrice * i.quantity, order.currency)}</span>

@@ -11,6 +11,7 @@ import { formatDateTime } from '../../utils/formatDate'
 import { formatPrice } from '../../utils/format'
 import { requireSupabase } from '../../services/supabase'
 import { useCatalog } from '../../context/CatalogContext'
+import { subscriptionTerm } from '../../utils/catalog'
 import {
   MAX_TEXT,
   addComment,
@@ -111,7 +112,7 @@ export default function AdminOrderDetailPage() {
                   <span className="min-w-0">
                     <Link to={`/product/${i.productId}`} className="font-semibold text-white hover:text-red-hot">{i.title}</Link>
                     <span className="block text-xs text-silver">
-                      {i.platform}{i.region ? ` · регион: ${i.region}` : ''}{i.denomination ? ` · номинал: ${i.denomination} ${i.denominationCurrency??''}` : ''} · {i.quantity} × {formatPrice(i.unitPrice, order.currency)}
+                      {i.platform}{i.region ? ` · регион: ${i.region}` : ''}{subscriptionTerm(i) ? ` · срок: ${subscriptionTerm(i)}` : ''}{i.denomination ? ` · номинал: ${i.denomination} ${i.denominationCurrency??''}` : ''} · {i.quantity} × {formatPrice(i.unitPrice, order.currency)}
                     </span>
                   </span>
                   <span className="shrink-0 font-semibold">{formatPrice(i.unitPrice * i.quantity, order.currency)}</span>

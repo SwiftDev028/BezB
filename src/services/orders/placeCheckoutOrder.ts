@@ -90,7 +90,7 @@ async function placeRemote(cart: CartItem[], customer: { name: string; email: st
     const order: Order = {
       id: row.id, number: row.order_number, version: 1, createdAt: row.created_at, updatedAt: row.created_at,
       customer: { name: customer.name.trim(), email: customer.email.trim(), phone: customer.phone, comment: customer.comment },
-      consentAt: row.consent_at, items: (row.items ?? []).map((item: any) => ({ productId: item.product_id, title: item.product_name, platform: item.platform, unitPrice: Number(item.unit_price), quantity: Number(item.quantity), ...(item.region ? { region: item.region } : {}), denomination:item.denomination == null ? null : Number(item.denomination), denominationCurrency:item.denomination_currency ?? null })),
+      consentAt: row.consent_at, items: (row.items ?? []).map((item: any) => ({ productId: item.product_id, title: item.product_name, platform: item.platform, unitPrice: Number(item.unit_price), quantity: Number(item.quantity), ...(item.region ? { region: item.region } : {}), denomination:item.denomination == null ? null : Number(item.denomination), denominationCurrency:item.denomination_currency ?? null, subscriptionMonths:item.subscription_months == null ? null : Number(item.subscription_months), subscriptionBonusMonths:Number(item.subscription_bonus_months ?? 0) })),
       total: Number(row.total_amount), currency: 'RUB', paymentStatus: 'unpaid', fulfillmentStatus: 'new', delivery: { note: '' },
       history: [{ id: `${row.id}-created`, type: 'created', at: row.created_at, actor: 'Покупатель', text: 'Заказ оформлен на сайте. Оплата не подключена.' }], isDemo: false, source: 'checkout',
     }

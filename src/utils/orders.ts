@@ -100,6 +100,8 @@ export function createOrder(
       unitPrice: p.price,
       quantity: line.quantity,
       region: line.region,
+      subscriptionMonths: p.subscriptionMonths ?? null,
+      subscriptionBonusMonths: p.subscriptionBonusMonths ?? 0,
     })
   }
   if (items.length === 0) return fail('В заказе нет позиций.')

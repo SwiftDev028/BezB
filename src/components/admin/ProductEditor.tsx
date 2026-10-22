@@ -16,7 +16,7 @@ export type EditorMode = 'create' | 'edit' | 'duplicate'
 export const blankForm: ProductForm = {
   product_id: '', slug: '', group_id: '', title: '', brand: '', platform: '', category: 'apple', product_type: 'gift-card',
   region: '', denomination: '', denomination_currency: '', unit_price: '', image_url: '', description: '',
-  activation_instructions: '', restrictions: '', availability: 'out_of_stock', publication_status: 'draft',
+  subscription_months: '', subscription_bonus_months: '', activation_instructions: '', restrictions: '', availability: 'out_of_stock', publication_status: 'draft',
 }
 
 interface ProductEditorProps {
@@ -51,7 +51,7 @@ export function ProductEditor({ mode, initial, original, cost, regions, brands, 
   const uid = useId()
   const id = (n: string) => `${uid}-${n}`
   const [form, setForm] = useState<ProductForm>(initial)
-  // Пока администратор сам не правил SKU/адрес, предлагаем их из названия, региона и номинала
+  // Пока администратор сам не правил SKU/адрес, предлагаем их из названия и данных варианта
   const [idsTouched, setIdsTouched] = useState(mode === 'edit')
   const [submitted, setSubmitted] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -72,8 +72,8 @@ export function ProductEditor({ mode, initial, original, cost, regions, brands, 
   const set = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) =>
     setForm((f) => {
       const next = { ...f, [key]: value }
-      if (!idsTouched && (key === 'title' || key === 'region' || key === 'denomination' || key === 'denomination_currency')) {
-        Object.assign(next, suggestIds(next.title, next.region, next.denomination, next.denomination_currency))
+      if (!idsTouched && (key === 'title' || key === 'region' || key === 'denomination' || key === 'denomination_currency' || key === 'subscription_months' || key === 'subscription_bonus_months')) {
+        Object.assign(next, suggestIds(next.title, next.region, next.denomination, next.denomination_currency, next.subscription_months, next.subscription_bonus_months))
       }
       return next
     })
@@ -109,6 +109,8 @@ export function ProductEditor({ mode, initial, original, cost, regions, brands, 
         region: form.region.trim(),
         denomination: form.denomination === '' ? null : Number(form.denomination),
         denomination_currency: form.denomination_currency.trim() || null,
+        subscription_months: form.subscription_months === '' ? null : Number(form.subscription_months),
+        subscription_bonus_months: Number(form.subscription_bonus_months || 0),
         unit_price: Number(form.unit_price),
         currency: 'RUB',
         description: form.description.trim(),
@@ -202,6 +204,17 @@ export function ProductEditor({ mode, initial, original, cost, regions, brands, 
             </div>
           </Section>
 
+          {form.product_type === 'subscription' && (
+            <Section title="Срок подписки">
+              <Field label="Основной срок, месяцев" htmlFor={id('subscription_months')} error={err('subscription_months')} hint="Структурированное значение сохраняется в каталоге и заказе.">
+                <input {...aria('subscription_months')} type="number" inputMode="numeric" min="1" max="120" step="1" value={form.subscription_months} onChange={(e) => set('subscription_months', e.target.value)} className={inputClass} />
+              </Field>
+              <Field label="Бонусные месяцы" htmlFor={id('subscription_bonus_months')} error={err('subscription_bonus_months')} hint="Например, 12 месяцев + 1 бонусный месяц.">
+                <input {...aria('subscription_bonus_months')} type="number" inputMode="numeric" min="0" max="120" step="1" value={form.subscription_bonus_months} onChange={(e) => set('subscription_bonus_months', e.target.value)} className={inputClass} />
+              </Field>
+            </Section>
+          )}
+
           <Section title="Цена и себестоимость">
             <Field label="Цена продажи, ₽" htmlFor={id('unit_price')} error={err('unit_price')} hint="Эту цену платит покупатель">
               <input {...aria('unit_price')} type="number" inputMode="decimal" min="0" step="0.01" value={form.unit_price} onChange={(e) => set('unit_price', e.target.value)} className={inputClass} />
@@ -211,7 +224,7 @@ export function ProductEditor({ mode, initial, original, cost, regions, brands, 
               {cost ? (
                 <>
                   <p className="mt-1 text-base font-semibold text-white">{cost.cost} {cost.currency}</p>
-                  <p className="text-xs text-silver">Поставщик: {cost.supplier || '—'}. Меняется в разделе «Поставщики».</p>
+                  <p className="text-xs text-silver">Источник: {cost.supplier || '—'}. Меняется в разделе «Поставщики и себестоимость».</p>
                   {m ? (
                     <p className={`mt-2 ${m.profit <= 0 ? 'text-red-hot' : 'text-white'}`}>
                       Прибыль: {formatPrice(Math.round(m.profit))} ({m.percent.toFixed(0)}%)

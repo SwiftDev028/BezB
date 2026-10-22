@@ -13,7 +13,7 @@ const p = (o: Partial<AdminProduct>): AdminProduct => ({
 const form: ProductForm = {
   product_id: 'apple-100-try', slug: 'apple-100-try', group_id: '', title: 'Apple Gift Card', brand: 'Apple', platform: '', category: 'apple',
   product_type: 'gift-card', region: 'Турция', denomination: '100', denomination_currency: 'TRY', unit_price: '350', image_url: '',
-  description: 'd', activation_instructions: 'i', restrictions: '', availability: 'in_stock', publication_status: 'draft',
+  subscription_months: '', subscription_bonus_months: '', description: 'd', activation_instructions: 'i', restrictions: '', availability: 'in_stock', publication_status: 'draft',
 }
 
 describe('админка каталога: логика', () => {
@@ -26,6 +26,7 @@ describe('админка каталога: логика', () => {
   it('slug и SKU из названия, региона и номинала', () => {
     expect(slugify('Подарочная карта Apple')).toBe('podarochnaya-karta-apple')
     expect(suggestIds('Apple Gift Card', 'Турция', '100', 'TRY').slug).toBe('apple-gift-card-turtsiya-100-try')
+    expect(suggestIds('Xbox Game Pass Ultimate', '', '', '', '12', '1').slug).toBe('xbox-game-pass-ultimate-12-months-bonus-1')
   })
 
   it('поиск по SKU, региону и номиналу, фильтр по статусу', () => {
@@ -43,25 +44,34 @@ describe('админка каталога: логика', () => {
 
   it('себестоимость: лучшая рублёвая закупка активного поставщика и маржа', () => {
     const costs = bestCosts([
-      { product_id: 'a', region: '', purchase_cost: 80, purchase_currency: 'RUB', suppliers: { name: 'A', status: 'active' } },
-      { product_id: 'a', region: '', purchase_cost: 70, purchase_currency: 'RUB', suppliers: { name: 'B', status: 'active' } },
-      { product_id: 'a', region: '', purchase_cost: 10, purchase_currency: 'RUB', suppliers: { name: 'C', status: 'inactive' } },
-      { product_id: 'a', region: '', purchase_cost: 1, purchase_currency: 'USD', suppliers: { name: 'D', status: 'active' } },
+      { product_id: 'a', region: '', purchase_cost: 80, purchase_currency: 'RUB', purchase_cost_status: 'confirmed', suppliers: { name: 'A', status: 'active' } },
+      { product_id: 'a', region: '', purchase_cost: 70, purchase_currency: 'RUB', purchase_cost_status: 'confirmed', suppliers: { name: 'B', status: 'active' } },
+      { product_id: 'a', region: '', purchase_cost: 10, purchase_currency: 'RUB', purchase_cost_status: 'confirmed', suppliers: { name: 'C', status: 'inactive' } },
+      { product_id: 'a', region: '', purchase_cost: 1, purchase_currency: 'USD', purchase_cost_status: 'confirmed', suppliers: { name: 'D', status: 'active' } },
+      { product_id: 'a', region: '', purchase_cost: 2, purchase_currency: 'RUB', purchase_cost_status: 'estimate', suppliers: null },
+      { product_id: 'c', region: '', purchase_cost: 75, purchase_currency: 'RUB', purchase_cost_status: 'confirmed', suppliers: null },
+      { product_id: 'b', region: '', purchase_cost: 3, purchase_currency: 'RUB', purchase_cost_status: 'unverified', suppliers: null },
     ])
     expect(costs.get('a|')).toMatchObject({ cost: 70, supplier: 'B' })
     expect(margin(100, costs.get('a|'))).toEqual({ profit: 30, percent: 30 })
-    expect(margin(100, { cost: 1, currency: 'USD', supplier: '' })).toBeNull()
+    expect(costs.get('a|')?.status).toBe('confirmed')
+    expect(costs.get('c|')).toMatchObject({ cost: 75, supplier: '', status: 'confirmed' })
+    expect(costs.has('b|')).toBe(false)
+    expect(margin(100, { cost: 1, currency: 'USD', supplier: '', status: 'confirmed' })).toBeNull()
   })
 
   it('проверка формы', () => {
     expect(validateProductForm(form)).toEqual({})
+    expect(validateProductForm({ ...form, product_type: 'subscription', subscription_months: '12', subscription_bonus_months: '1' })).toEqual({})
+    expect(validateProductForm({ ...form, product_type: 'subscription', subscription_months: '1.5' })).toHaveProperty('subscription_months')
+    expect(validateProductForm({ ...form, product_type: 'subscription', subscription_bonus_months: '1' })).toHaveProperty('subscription_months')
     const bad = validateProductForm({ ...form, title: ' ', unit_price: '0', slug: 'Bad Slug', denomination_currency: '', image_url: 'http://x' })
     expect(Object.keys(bad).sort()).toEqual(['denomination_currency', 'image_url', 'slug', 'title', 'unit_price'])
   })
 
   it('предупреждения перед публикацией', () => {
     const published = { ...form, publication_status: 'published' as const, unit_price: '60' }
-    const w = publishWarnings(published, { cost: 70, currency: 'RUB', supplier: 'B' })
+    const w = publishWarnings(published, { cost: 70, currency: 'RUB', supplier: 'B', status: 'confirmed' })
     expect(w.some((x) => x.includes('изображения'))).toBe(true)
     expect(w.some((x) => x.includes('без прибыли'))).toBe(true)
     expect(publishWarnings(form, undefined)).toEqual([])

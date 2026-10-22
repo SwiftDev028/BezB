@@ -16,6 +16,7 @@ import { validateCheckout, type CheckoutErrors } from '../utils/checkout'
 import { supabaseConfigured } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useCatalog } from '../context/CatalogContext'
+import { subscriptionTerm } from '../utils/catalog'
 
 export default function CheckoutPage() {
   useDocumentTitle('Оформление заказа')
@@ -224,6 +225,7 @@ export default function CheckoutPage() {
                     <span className="block text-xs text-silver">
                       {item.quantity} × {formatPrice(p.price, p.currency)}
                       {item.region ? ` · ${item.region}` : ''}
+                      {subscriptionTerm(p) ? ` · ${subscriptionTerm(p)}` : ''}
                     </span>
                   </span>
                   <span className="shrink-0 font-semibold">{formatPrice(p.price * item.quantity, p.currency)}</span>

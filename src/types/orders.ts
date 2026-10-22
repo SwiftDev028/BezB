@@ -27,6 +27,8 @@ export interface OrderItem {
   region?: string
   denomination?: number | null
   denominationCurrency?: string | null
+  subscriptionMonths?: number | null
+  subscriptionBonusMonths?: number
 }
 
 export interface OrderEvent {

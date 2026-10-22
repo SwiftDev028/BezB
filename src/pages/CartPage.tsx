@@ -10,6 +10,7 @@ import { useCatalog } from '../context/CatalogContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { MAX_QUANTITY, lineKey } from '../utils/cart'
 import { formatPrice } from '../utils/format'
+import { subscriptionTerm } from '../utils/catalog'
 
 export default function CartPage() {
   useDocumentTitle('Корзина')
@@ -48,6 +49,7 @@ export default function CartPage() {
                       <p className="mt-1 text-sm text-silver">
                         {product.platform}
                         {item.region ? ` · регион: ${item.region}` : ''}
+                        {subscriptionTerm(product) ? ` · срок: ${subscriptionTerm(product)}` : ''}
                       </p>
                       <p className="mt-1 text-sm text-silver">{formatPrice(product.price, product.currency)} за шт.</p>
                     </div>

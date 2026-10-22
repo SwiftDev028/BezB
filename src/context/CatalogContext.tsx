@@ -14,6 +14,8 @@ export function mapCatalogRows(rows: Record<string, any>[]): Product[] {
     popularity: Number(row.popularity ?? 0), addedAt: row.created_at ?? row.updated_at, tags: [row.brand, row.region].filter(Boolean),
     groupId: row.group_id, brand: row.brand, country: row.region || undefined,
     denomination: row.denomination === null ? null : Number(row.denomination), denominationCurrency: row.denomination_currency,
+    subscriptionMonths: row.subscription_months === null || row.subscription_months === undefined ? null : Number(row.subscription_months),
+    subscriptionBonusMonths: Number(row.subscription_bonus_months ?? 0),
     imageUrl: row.image_url, activationInstructions: row.activation_instructions ?? '',
   }))
   const regionsByGroup = new Map<string, string[]>()
