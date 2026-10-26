@@ -25,7 +25,6 @@ export default function CheckoutPage() {
   const { getProduct } = useCatalog()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
-  const [phone, setPhone] = useState('')
   const [comment, setComment] = useState('')
   const [agree, setAgree] = useState(false)
   const [errors, setErrors] = useState<CheckoutErrors>({})
@@ -73,10 +72,10 @@ export default function CheckoutPage() {
     e.preventDefault()
     if (submitting.current) return
     setSubmitError(null)
-    const found = validateCheckout(name, email, agree, phone)
+    const found = validateCheckout(name, email, agree)
     setErrors(found)
     if (Object.keys(found).length > 0) {
-      const firstId = found.name ? 'co-name' : found.phone ? 'co-phone' : found.email ? 'co-email' : 'co-agree'
+      const firstId = found.name ? 'co-name' : found.email ? 'co-email' : 'co-agree'
       formRef.current?.querySelector<HTMLElement>(`#${firstId}`)?.focus()
       return
     }
@@ -86,7 +85,7 @@ export default function CheckoutPage() {
     try {
       // Сервер проверяет активность вариантов и сам рассчитывает цены и итоговую сумму.
       const linkedUserId = user?.email_confirmed_at ? user.id : undefined
-      const result = await placeCheckoutOrder(items, { name, email, phone, comment, consent: agree }, undefined, getProduct, linkedUserId)
+      const result = await placeCheckoutOrder(items, { name, email, comment, consent: agree }, undefined, getProduct, linkedUserId)
       if (!result.ok) {
         setSubmitError(result.error)
         return
@@ -118,7 +117,7 @@ export default function CheckoutPage() {
       <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
         <form ref={formRef} onSubmit={onSubmit} noValidate className="space-y-5 border border-line bg-coal p-5 sm:p-6">
           <h2 className="text-2xl">Контактные данные</h2>
-          {!user && <p className="text-sm text-silver">Заказ можно оформить без регистрации. Гостевой заказ не появится в «Моих заказах»; после ручного подтверждения оплаты магазин свяжется с вами по указанному email.</p>}
+          {!user && <p className="text-sm text-silver">Заказ можно оформить без регистрации. После регистрации и подтверждения того же email его можно найти в «Моих заказах»; магазин свяжется с вами по указанному email.</p>}
           {user && !user.email_confirmed_at && <p className="text-sm text-silver">Подтверждите email, чтобы привязать заказ к аккаунту, или оформите его как гостевой.</p>}
 
           <div>
@@ -136,11 +135,6 @@ export default function CheckoutPage() {
             {errorText('co-name-error', errors.name)}
           </div>
 
-          <div>
-            <label htmlFor="co-phone" className="mb-1.5 block text-sm font-semibold">Телефон</label>
-            <input id="co-phone" name="phone" type="tel" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} aria-invalid={Boolean(errors.phone)} className={inputClass} />
-            {errorText('co-phone-error', errors.phone)}
-          </div>
           <div>
             <label htmlFor="co-email" className="mb-1.5 block text-sm font-semibold">Email</label>
             <input

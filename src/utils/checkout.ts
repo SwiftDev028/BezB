@@ -4,7 +4,6 @@ import { createOrder } from './orders'
 export interface CheckoutErrors {
   name?: string
   email?: string
-  phone?: string
   agree?: string
 }
 
@@ -12,15 +11,13 @@ export const MAX_NAME = 100
 export const MAX_EMAIL = 254
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
-export function validateCheckout(name: string, email: string, agree: boolean, phone?: string): CheckoutErrors {
+export function validateCheckout(name: string, email: string, agree: boolean): CheckoutErrors {
   const errors: CheckoutErrors = {}
   if (name.trim().length < 2) errors.name = 'Укажите имя — не короче двух символов.'
   else if (name.trim().length > MAX_NAME) errors.name = `Имя слишком длинное — не больше ${MAX_NAME} символов.`
   if (!email.trim()) errors.email = 'Укажите email для связи по заказу.'
   else if (email.trim().length > MAX_EMAIL) errors.email = 'Email слишком длинный.'
   else if (!EMAIL_RE.test(email.trim())) errors.email = 'Проверьте email: адрес должен выглядеть как name@example.com.'
-  if (phone !== undefined && phone.trim().length < 5) errors.phone = 'Укажите телефон для связи (не короче пяти символов).'
-  else if (phone && phone.trim().length > 40) errors.phone = 'Телефон слишком длинный.'
   if (!agree) errors.agree = 'Подтвердите, что ознакомились с условиями.'
   return errors
 }
