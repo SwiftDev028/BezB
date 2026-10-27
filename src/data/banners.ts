@@ -43,6 +43,8 @@ export const banners: Banner[] = [
     cta: 'Открыть Xbox',
     to: '/category/xbox',
     accent: '#35c24a',
+    image: 'images/banners/xbox.webp',
+    imageAlt: 'Светящийся логотип Xbox на чёрном фоне',
   },
   {
     id: 'steam',
