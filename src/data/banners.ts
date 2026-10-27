@@ -31,6 +31,9 @@ export const banners: Banner[] = [
     cta: 'Открыть PlayStation',
     to: '/category/playstation',
     accent: '#3d7bff',
+    image: 'images/banners/playstation.webp',
+    imageAlt: 'Консоли PlayStation 5 и два геймпада DualSense на тёмно-синем фоне',
+    imagePosition: '88% center',
   },
   {
     id: 'xbox',

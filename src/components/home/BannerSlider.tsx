@@ -71,6 +71,7 @@ export function BannerSlider() {
                   height={433}
                   loading={i === 0 ? 'eager' : 'lazy'}
                   decoding="async"
+                  style={b.imagePosition ? { objectPosition: b.imagePosition } : undefined}
                   className="absolute inset-x-0 top-0 h-56 w-full object-cover object-[48%_center] [-webkit-mask-image:linear-gradient(to_bottom,#000_55%,transparent)] [mask-image:linear-gradient(to_bottom,#000_55%,transparent)] md:inset-y-0 md:left-auto md:right-0 md:h-full md:w-[62%] md:[-webkit-mask-image:linear-gradient(to_right,transparent,#000_45%)] md:[mask-image:linear-gradient(to_right,transparent,#000_45%)]"
                 />
               )}

@@ -65,6 +65,8 @@ export interface Banner {
   /** Необязательная обложка кампании: путь относительно `public/` */
   image?: string
   imageAlt?: string
+  /** CSS object-position обложки, если её нужно сдвинуть (по умолчанию 48% center) */
+  imagePosition?: string
 }
 
 export interface FaqItem {
