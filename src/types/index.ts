@@ -62,6 +62,9 @@ export interface Banner {
   cta: string
   to: string
   accent: string
+  /** Необязательная обложка кампании: путь относительно `public/` */
+  image?: string
+  imageAlt?: string
 }
 
 export interface FaqItem {
@@ -94,3 +97,5 @@ export interface CatalogFilters {
 }
 
 export * from './orders'
+
+export * from './games'

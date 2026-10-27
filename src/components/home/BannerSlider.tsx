@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
 import { useReducedMotion } from 'motion/react'
 import { banners } from '../../data/banners'
+import { assetUrl } from '../../utils/assetUrl'
 import { btnPrimary } from '../common/ui'
 
 const AUTOPLAY_MS = 6500
@@ -61,20 +62,32 @@ export function BannerSlider() {
               className="texture-hatch relative min-h-[26rem] w-full shrink-0 overflow-hidden sm:min-h-[28rem] lg:min-h-[32rem]"
               style={{ background: `linear-gradient(105deg, #0b0b0c 45%, ${b.accent}33 100%)` }}
             >
+              {b.image && (
+                // Обложка растворяется в фоне слайда: на телефоне — сверху вниз, на широких экранах — слева направо
+                <img
+                  src={assetUrl(b.image)}
+                  alt={b.imageAlt ?? ''}
+                  width={1260}
+                  height={433}
+                  loading={i === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                  className="absolute inset-x-0 top-0 h-56 w-full object-cover object-[48%_center] [-webkit-mask-image:linear-gradient(to_bottom,#000_55%,transparent)] [mask-image:linear-gradient(to_bottom,#000_55%,transparent)] md:inset-y-0 md:left-auto md:right-0 md:h-full md:w-[62%] md:[-webkit-mask-image:linear-gradient(to_right,transparent,#000_45%)] md:[mask-image:linear-gradient(to_right,transparent,#000_45%)]"
+                />
+              )}
               <div
                 aria-hidden="true"
-                className="absolute -right-16 top-0 hidden h-full w-1/3 -skew-x-[18deg] opacity-80 md:block"
+                className={`absolute -right-16 top-0 hidden h-full w-1/3 -skew-x-[18deg] opacity-80 ${b.image ? '' : 'md:block'}`}
                 style={{ background: `linear-gradient(180deg, ${b.accent}, transparent)`, opacity: 0.35 }}
               />
               <div
                 aria-hidden="true"
                 className="absolute right-6 top-1/2 hidden -translate-y-1/2 select-none font-display text-[16rem] font-bold uppercase leading-none text-white/[0.04] lg:block"
               >
-                {b.eyebrow.slice(0, 2)}
+                {!b.image && b.eyebrow.slice(0, 2)}
               </div>
               <div className="absolute inset-x-0 bottom-0 h-1.5" style={{ background: b.accent }} aria-hidden="true" />
 
-              <div className="container-x relative flex h-full min-h-[inherit] items-center py-12 pb-20">
+              <div className={`container-x relative flex h-full min-h-[inherit] items-center py-12 pb-20 ${b.image ? 'max-md:pt-52' : ''}`}>
                 <div className="max-w-2xl">
                   <p className="mb-3 font-display text-base uppercase tracking-[0.25em]" style={{ color: b.accent }}>
                     {b.eyebrow}
@@ -101,7 +114,7 @@ export function BannerSlider() {
               onClick={() => go(i)}
               aria-label={`Слайд ${i + 1}: ${b.eyebrow}`}
               aria-current={i === index}
-              className="grid h-11 w-11 place-items-center"
+              className="grid h-11 w-10 place-items-center sm:w-11"
             >
               <span className={`block h-1.5 transition-all ${i === index ? 'w-8 bg-red' : 'w-4 bg-white/40 hover:bg-white/70'}`} />
             </button>

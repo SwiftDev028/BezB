@@ -8,6 +8,7 @@ import { OrdersProvider } from './context/OrdersContext'
 const CatalogPage = lazy(() => import('./pages/CatalogPage'))
 const CategoryPage = lazy(() => import('./pages/CategoryPage'))
 const ProductPage = lazy(() => import('./pages/ProductPage'))
+const GamePage = lazy(() => import('./pages/GamePage'))
 const SearchPage = lazy(() => import('./pages/SearchPage'))
 const FavoritesPage = lazy(() => import('./pages/FavoritesPage'))
 const CartPage = lazy(() => import('./pages/CartPage'))
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="catalog" element={<CatalogPage />} />
           <Route path="category/:id" element={<CategoryPage />} />
           <Route path="product/:slug" element={<ProductPage />} />
+          <Route path="game/:slug" element={<GamePage />} />
           <Route path="search" element={<SearchPage />} />
           <Route path="favorites" element={<FavoritesPage />} />
           <Route path="cart" element={<CartPage />} />

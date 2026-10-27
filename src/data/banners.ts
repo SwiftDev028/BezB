@@ -2,6 +2,17 @@ import type { Banner } from '../types'
 
 export const banners: Banner[] = [
   {
+    id: 'gta-vi',
+    eyebrow: 'Новинка · Rockstar Games',
+    title: 'Grand Theft Auto VI',
+    text: 'Новая глава легендарной серии Rockstar Games с масштабным открытым миром, яркими героями и криминальной историей в современном Вайс-Сити. Исследуйте улицы, побережья и районы штата Леонида, участвуйте в динамичных погонях, ограблениях и сюжетных миссиях.',
+    cta: 'Подробнее об игре',
+    to: '/game/grand-theft-auto-vi',
+    accent: '#ff4fa3',
+    image: 'images/games/gta-vi.webp',
+    imageAlt: 'Официальный постер Grand Theft Auto VI: двое героев на капоте автомобиля на фоне пальм и Вайс-Сити',
+  },
+  {
     id: 'ai',
     eyebrow: 'AI-сервисы',
     title: 'Больше возможностей для работы и учёбы',
