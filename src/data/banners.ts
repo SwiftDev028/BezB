@@ -20,6 +20,8 @@ export const banners: Banner[] = [
     cta: 'Смотреть AI-подписки',
     to: '/category/ai',
     accent: '#e10600',
+    image: 'images/banners/ai.webp',
+    imageAlt: 'Логотип ChatGPT на тёмном экране смартфона',
   },
   {
     id: 'playstation',
