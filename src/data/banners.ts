@@ -54,5 +54,7 @@ export const banners: Banner[] = [
     cta: 'Открыть Steam',
     to: '/category/steam',
     accent: '#7fb7e6',
+    image: 'images/banners/steam.webp',
+    imageAlt: 'Логотип Steam на фоне обложек игр',
   },
 ]
