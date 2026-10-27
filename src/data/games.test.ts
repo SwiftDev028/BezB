@@ -25,7 +25,9 @@ describe('страницы игр', () => {
     const banner = banners.find((item) => item.id === 'phantom-blade-zero')
 
     expect(game.platforms).toEqual([{ category: 'playstation', label: 'PlayStation 5' }])
-    expect(game.cover).toBeUndefined()
+    expect(game.publisher).toBe('S-GAME')
+    expect(game.cover).toBe('images/games/phantom-blade-zero.jpg')
+    expect(game.coverAlt).toBe('Главный герой Soul из Phantom Blade Zero')
     expect(game.description).toContain('66 дня')
     expect(game.description).toContain('нет русской озвучки')
     expect(game.catalogTitlePattern.test('Phantom Blade Zero — Standard Edition')).toBe(true)
