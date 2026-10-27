@@ -23,6 +23,18 @@ export const games: GamePage[] = [
     platformNote:
       'Платформы указаны по официальному анонсу Rockstar Games. Товары GTA VI появятся в BezB только после подтверждения поставщиком — пока их в каталоге нет, если ниже не показаны карточки.',
   },
+  {
+    slug: 'phantom-blade-zero',
+    title: 'Phantom Blade Zero',
+    description:
+      'Мрачный экшен-RPG в стилистике уся на Unreal Engine 5. Соула обвиняют в убийстве наставника. Получив смертельное ранение в сердце, он располагает всего 66 днями, чтобы раскрыть заговор в Улине. Боевая система построена на ритме кунг-фу: синие приёмы Brutal необходимо парировать, а красные Killer — обходить с помощью Ghoststep, чтобы оказаться за спиной противника. В арсенале — более 30 видов оружия и около 20 призрачных орудий. В игре есть русские субтитры, но нет русской озвучки. Доступны версии для Steam, PS5 и Epic Games; для PS5 предусмотрено издание Digital Deluxe Edition с дополнительными материалами. На этой странице подготовлены только варианты PS5.',
+    accent: '#bb4b3b',
+    releaseNote: null,
+    platforms: [{ category: 'playstation', label: 'PlayStation 5' }],
+    catalogTitlePattern: /^Phantom Blade Zero(?:\s|$)/iu,
+    platformNote:
+      'На этом этапе в BezB подготовлены только варианты для PlayStation 5. Товары Steam и Epic Games не создаются.',
+  },
 ]
 
 export function getGame(slug: string | undefined): GamePage | undefined {

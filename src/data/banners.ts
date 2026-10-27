@@ -13,6 +13,17 @@ export const banners: Banner[] = [
     imageAlt: 'Официальный постер Grand Theft Auto VI: двое героев на капоте автомобиля на фоне пальм и Вайс-Сити',
   },
   {
+    id: 'phantom-blade-zero',
+    eyebrow: 'Экшен-RPG · PlayStation 5',
+    title: 'Phantom Blade Zero',
+    text: 'Мрачный экшен в стилистике уся: у Соула есть 66 дней, чтобы раскрыть заговор в Улине.',
+    cta: 'Подробнее об игре',
+    to: '/game/phantom-blade-zero',
+    accent: '#bb4b3b',
+    image: 'images/games/phantom-blade-zero.jpg',
+    imageAlt: 'Официальный арт Phantom Blade Zero с главным героем Soul',
+  },
+  {
     id: 'ai',
     eyebrow: 'AI-сервисы',
     title: 'Больше возможностей для работы и учёбы',

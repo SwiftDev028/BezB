@@ -19,4 +19,18 @@ describe('страницы игр', () => {
     expect(pattern.test('Grand Theft Auto V')).toBe(false)
     expect(pattern.test('Grand Theft Auto: Vice City')).toBe(false)
   })
+
+  it('Phantom Blade Zero ведёт только к вариантам PS5', () => {
+    const game = getGame('phantom-blade-zero')!
+    const banner = banners.find((item) => item.id === 'phantom-blade-zero')
+
+    expect(game.platforms).toEqual([{ category: 'playstation', label: 'PlayStation 5' }])
+    expect(game.cover).toBeUndefined()
+    expect(game.description).toContain('66 дня')
+    expect(game.description).toContain('нет русской озвучки')
+    expect(game.catalogTitlePattern.test('Phantom Blade Zero — Standard Edition')).toBe(true)
+    expect(game.catalogTitlePattern.test('Phantom Blade Zero: unrelated game')).toBe(false)
+    expect(banner?.to).toBe('/game/phantom-blade-zero')
+    expect(banner?.image).toBe('images/games/phantom-blade-zero.jpg')
+  })
 })
