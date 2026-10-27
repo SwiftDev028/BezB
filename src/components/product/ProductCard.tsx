@@ -8,6 +8,7 @@ import { Badge } from './Badge'
 import { FavoriteButton } from './FavoriteButton'
 import { Price } from './Price'
 import { subscriptionTerm } from '../../utils/catalog'
+import { productDescriptionPreview } from './ProductDescription'
 
 interface ProductCardProps {
   product: Product
@@ -66,7 +67,9 @@ export function ProductCard({ product, layout = 'grid' }: ProductCardProps) {
           {variantDetails.length > 0 && (
             <p className="mt-1 text-sm text-silver">{variantDetails.join(' · ')}</p>
           )}
-          {isList && <p className="mt-2 hidden max-w-xl text-sm text-silver sm:block">{product.description}</p>}
+          <p className="mt-2 line-clamp-2 max-w-xl break-words text-sm text-silver [overflow-wrap:anywhere]">
+            {productDescriptionPreview(product.description)}
+          </p>
         </div>
 
         <Price product={product} />

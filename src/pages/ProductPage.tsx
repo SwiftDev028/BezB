@@ -11,14 +11,15 @@ import { Badge } from '../components/product/Badge'
 import { FavoriteButton } from '../components/product/FavoriteButton'
 import { Price } from '../components/product/Price'
 import { ProductGrid } from '../components/product/ProductGrid'
-import { inputClass } from '../components/common/ui'
+import { ProductDescription } from '../components/product/ProductDescription'
+import { btnSecondary, inputClass } from '../components/common/ui'
 import { subscriptionTerm } from '../utils/catalog'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import NotFoundPage from './NotFoundPage'
 
 export default function ProductPage() {
   const { slug = '' } = useParams()
-  const { products, getProduct, loading } = useCatalog()
+  const { products, getProduct, loading, error, refresh } = useCatalog()
   const initialProduct = getProduct(slug)
   const [variantSlug, setVariantSlug] = useState(slug)
   useEffect(() => setVariantSlug(slug), [slug])
@@ -26,6 +27,18 @@ export default function ProductPage() {
   useDocumentTitle(product?.title)
 
   if (loading && !product) return <div role="status" className="container-x py-12 text-silver">Загружаем товар…</div>
+  if (error && !product) {
+    return (
+      <div className="container-x py-12">
+        <div role="alert" className="flex flex-col items-start gap-3 border border-red p-4 text-silver">
+          <p>Не удалось загрузить товар: {error}</p>
+          <button type="button" onClick={() => void refresh()} className={btnSecondary}>
+            Повторить
+          </button>
+        </div>
+      </div>
+    )
+  }
   if (!product) return <NotFoundPage />
 
   const category = categoryById[product.category]
@@ -74,7 +87,9 @@ export default function ProductPage() {
               {product.available ? 'В наличии' : 'Нет в наличии'}
             </span>
           </div>
-          <p className="mt-5 text-silver">{product.description}</p>
+          <div className="mt-5">
+            <ProductDescription description={product.description} />
+          </div>
 
           {variants.length > 1 && (
             <div className="mt-6 max-w-xs">
