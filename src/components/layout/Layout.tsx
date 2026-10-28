@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router-dom'
 import { ScrollToTop } from '../common/ScrollToTop'
-import { AnnouncementBar } from './AnnouncementBar'
 import { Footer } from './Footer'
 import { Header } from './Header'
 
@@ -14,7 +13,6 @@ export function Layout() {
         Перейти к содержимому
       </a>
       <ScrollToTop />
-      <AnnouncementBar />
       <Header />
       <main id="main" className="flex-1">
         <Outlet />

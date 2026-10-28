@@ -55,7 +55,8 @@ export default function App() {
           <Route path="about" element={<AboutPage />} />
           <Route path="faq" element={<FaqPage />} />
           <Route path="delivery" element={<DeliveryPage />} />
-          <Route path="refund-policy" element={<RefundPolicyPage />} />
+          <Route path="refunds" element={<RefundPolicyPage />} />
+          <Route path="refund-policy" element={<Navigate to="/refunds" replace />} />
           <Route path="terms" element={<TermsPage />} />
           <Route path="privacy" element={<PrivacyPage />} />
           <Route path="contacts" element={<ContactsPage />} />

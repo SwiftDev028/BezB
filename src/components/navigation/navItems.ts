@@ -16,12 +16,12 @@ export const infoNav: NavItem[] = [
   { to: '/about', label: 'О магазине' },
   { to: '/faq', label: 'Вопросы и ответы' },
   { to: '/delivery', label: 'Получение товаров' },
-  { to: '/refund-policy', label: 'Правила возврата' },
   { to: '/contacts', label: 'Контакты' },
 ]
 
 export const legalNav: NavItem[] = [
   { to: '/terms', label: 'Условия использования' },
   { to: '/privacy', label: 'Политика конфиденциальности' },
+  { to: '/refunds', label: 'Правила возврата и отмены заказа' },
   { to: '/admin/orders', label: 'Админ-панель' },
 ]
