@@ -101,3 +101,5 @@ export interface CatalogFilters {
 export * from './orders'
 
 export * from './games'
+
+export * from './support'
