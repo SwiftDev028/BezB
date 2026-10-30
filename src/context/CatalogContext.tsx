@@ -47,6 +47,7 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
   // Номер последнего запроса: ответ устаревшего запроса не должен перезаписать свежие данные
   const lastRequest = useRef(0)
+  const loadSequence = useRef(0)
 
   const refresh = useCallback(async () => {
     if (!supabaseConfigured) {
@@ -55,15 +56,43 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       return
     }
     const request = ++lastRequest.current
+    const loadId = ++loadSequence.current
+    const startedAt = performance.now()
+    if (import.meta.env.DEV) {
+      console.debug('[Catalog dev]', { event: 'load-start', loadId })
+    }
     setFetching(true)
+    let responseStatus: number | undefined
+    let responseCode: string | undefined
     try {
-      const { data, error: queryError } = await requireSupabase().from('catalog_public').select('*').order('title')
+      const { data, error: queryError, status } = await requireSupabase().from('catalog_public').select('*').order('title')
+      responseStatus = status
+      responseCode = queryError?.code
       if (queryError) throw queryError
+      if (import.meta.env.DEV) {
+        console.debug('[Catalog dev]', {
+          event: 'load-complete',
+          loadId,
+          durationMs: Math.round(performance.now() - startedAt),
+          rowCount: data?.length ?? 0,
+          status,
+        })
+      }
       if (request !== lastRequest.current) return
       setProducts(mapCatalogRows(data ?? []))
       setLoadedOnce(true)
       setError(null)
     } catch (e) {
+      if (import.meta.env.DEV) {
+        console.warn('[Catalog dev]', {
+          event: 'load-failed',
+          loadId,
+          durationMs: Math.round(performance.now() - startedAt),
+          errorName: e instanceof Error ? e.name : 'UnknownError',
+          status: responseStatus,
+          code: responseCode,
+        })
+      }
       if (request !== lastRequest.current) return
       setError(e instanceof Error ? e.message : 'Не удалось загрузить каталог.')
     } finally {

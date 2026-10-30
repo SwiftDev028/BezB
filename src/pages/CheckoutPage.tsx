@@ -1,14 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { CreditCard, Info, ShoppingCart } from 'lucide-react'
 import { CatalogPending } from '../components/common/CatalogPending'
 import { EmptyState } from '../components/common/EmptyState'
 import { btnPrimary, btnSecondary, inputClass } from '../components/common/ui'
-import { CheckoutResult } from '../components/product/CheckoutResult'
 import { OrderSummary } from '../components/product/OrderSummary'
 import { useCart } from '../context/CartContext'
 import { placeCheckoutOrder } from '../services/orders/placeCheckoutOrder'
-import type { Order } from '../types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { formatPrice } from '../utils/format'
 import { lineKey } from '../utils/cart'
@@ -20,6 +18,7 @@ import { subscriptionTerm } from '../utils/catalog'
 
 export default function CheckoutPage() {
   useDocumentTitle('Оформление заказа')
+  const navigate = useNavigate()
   const { items, pending, clear } = useCart()
   const { user, loading: authLoading } = useAuth()
   const { getProduct } = useCatalog()
@@ -28,7 +27,6 @@ export default function CheckoutPage() {
   const [comment, setComment] = useState('')
   const [agree, setAgree] = useState(false)
   const [errors, setErrors] = useState<CheckoutErrors>({})
-  const [placed, setPlaced] = useState<Order | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
@@ -36,13 +34,6 @@ export default function CheckoutPage() {
   const submitting = useRef(false)
 
   useEffect(() => { if (user?.email) setEmail(user.email) }, [user?.email])
-
-  // После создания заказа переводим фокус на заголовок результата — для пользователей клавиатуры и скринридеров
-  useEffect(() => {
-    if (placed) document.getElementById('checkout-result-title')?.focus()
-  }, [placed])
-
-  if (placed) return <CheckoutResult order={placed} />
 
   if (authLoading) return <div className="container-x py-12" role="status">Проверяем аккаунт…</div>
 
@@ -92,7 +83,10 @@ export default function CheckoutPage() {
       }
       // Корзину очищаем только после успешного сохранения заказа
       clear()
-      setPlaced(result.value)
+      const tokenFragment = result.value.supportAccessToken
+        ? `#token=${encodeURIComponent(result.value.supportAccessToken)}`
+        : ''
+      navigate(`/support/${encodeURIComponent(result.value.id)}${tokenFragment}`, { replace: true })
     } finally {
       submitting.current = false
       setBusy(false)

@@ -1,80 +1,30 @@
 import { Link } from 'react-router-dom'
-import { Info } from 'lucide-react'
-import type { Order } from '../../types'
-import { formatDateTime } from '../../utils/formatDate'
+import type { CheckoutOrder } from '../../services/orders/placeCheckoutOrder'
 import { formatPrice } from '../../utils/format'
-import { FulfillmentBadge, PaymentBadge } from '../admin/StatusBadge'
-import { btnSecondary } from '../common/ui'
-import { subscriptionTerm } from '../../utils/catalog'
+import { btnPrimary } from '../common/ui'
 
-/** Подтверждение сохранённого заказа; оплата и выдача не выполняются. */
-export function CheckoutResult({ order }: { order: Order }) {
+export function CheckoutResult({ order }: { order: CheckoutOrder }) {
+  const tokenFragment = order.supportAccessToken
+    ? `#token=${encodeURIComponent(order.supportAccessToken)}`
+    : ''
+
   return (
     <div className="container-x py-8 sm:py-12">
-      <div className="mx-auto max-w-3xl">
-        <p className="mb-1 font-display text-sm uppercase tracking-[0.2em] text-red">Заказ оформлен</p>
-        <h1 className="text-4xl sm:text-5xl" tabIndex={-1} id="checkout-result-title">
-          Заказ создан
-        </h1>
-
-        <p role="status" className="mt-4 text-lg text-silver">
-          Номер заказа: <strong className="font-display text-2xl text-white">{order.number}</strong>
-        </p>
-
-        <div className="mt-5 flex gap-3 border border-red bg-red/10 p-4 text-sm">
-          <Info className="mt-0.5 size-5 shrink-0 text-red-hot" aria-hidden="true" />
-          <div className="space-y-1">
-            <p className="font-semibold text-white">Заказ сохранён в магазине.</p>
-            <p className="text-silver">
-              Онлайн-оплата не подключена: заказ не оплачен и товар не выдан. С магазином можно связаться по указанным контактам.
-            </p>
-          </div>
-        </div>
-
-        <section aria-labelledby="result-order" className="mt-6 border border-line bg-coal">
-          <h2 id="result-order" className="border-b border-line p-4 text-2xl">Состав заказа</h2>
-          <ul className="divide-y divide-line">
-            {order.items.map((i) => (
-              <li key={`${i.productId}-${i.region ?? ''}`} className="flex justify-between gap-3 p-4 text-sm">
-                <span className="min-w-0">
-                  {i.title}
-                  <span className="block text-xs text-silver">
-                    {i.quantity} × {formatPrice(i.unitPrice, order.currency)}
-                    {i.region ? ` · регион: ${i.region}` : ''}
-                    {subscriptionTerm(i) ? ` · срок: ${subscriptionTerm(i)}` : ''}
-                  </span>
-                </span>
-                <span className="shrink-0 font-semibold">{formatPrice(i.unitPrice * i.quantity, order.currency)}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="flex items-baseline justify-between border-t border-line p-4">
-            <span className="text-silver">Итого</span>
-            <span className="font-display text-3xl font-bold">{formatPrice(order.total, order.currency)}</span>
-          </p>
-        </section>
-
-        <dl className="mt-4 grid gap-4 border border-line bg-coal p-4 text-sm sm:grid-cols-2">
-          <div>
-            <dt className="text-xs uppercase tracking-wider text-silver">Покупатель</dt>
-            <dd className="mt-1">{order.customer.name}</dd>
-            <dd className="break-all text-silver">{order.customer.email}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wider text-silver">Статусы</dt>
-            <dd className="mt-1 flex flex-wrap gap-2">
-              <PaymentBadge status={order.paymentStatus} />
-              <FulfillmentBadge status={order.fulfillmentStatus} />
-            </dd>
-            <dd className="mt-2 text-xs text-silver">Создан {formatDateTime(order.createdAt)}</dd>
-          </div>
-        </dl>
-
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <Link to="/catalog" className={btnSecondary}>
-            Вернуться в каталог
-          </Link>
-        </div>
+      <div className="mx-auto max-w-3xl space-y-5">
+        <p className="font-display text-sm uppercase tracking-[0.2em] text-red">Заказ создан без оплаты</p>
+        <h1 className="text-4xl sm:text-5xl">Заказ {order.number}</h1>
+        <p className="text-silver">Персональный чат с менеджером создан для этого заказа. Доступ к чату не подтверждает оплату и не запускает выдачу товара.</p>
+        <ul className="divide-y divide-line border border-line bg-coal">
+          {order.items.map((item, index) => (
+            <li key={`${item.productId}-${item.region ?? ''}-${index}`} className="flex justify-between gap-3 p-4 text-sm">
+              <span className="min-w-0">{item.title} · {item.quantity} × {formatPrice(item.unitPrice, order.currency)}</span>
+              <strong>{formatPrice(item.quantity * item.unitPrice, order.currency)}</strong>
+            </li>
+          ))}
+        </ul>
+        <Link to={`/support/${encodeURIComponent(order.id)}${tokenFragment}`} className={btnPrimary}>
+          Открыть чат менеджера
+        </Link>
       </div>
     </div>
   )

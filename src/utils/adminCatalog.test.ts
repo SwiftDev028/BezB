@@ -27,6 +27,9 @@ describe('админка каталога: логика', () => {
     expect(slugify('Подарочная карта Apple')).toBe('podarochnaya-karta-apple')
     expect(suggestIds('Apple Gift Card', 'Турция', '100', 'TRY').slug).toBe('apple-gift-card-turtsiya-100-try')
     expect(suggestIds('Xbox Game Pass Ultimate', '', '', '', '12', '1').slug).toBe('xbox-game-pass-ultimate-12-months-bonus-1')
+    expect(suggestIds('Claude Pro', '', '', '', '1').product_id).toBe('claude-pro-1-months')
+    expect(suggestIds('Claude Max 5x', '', '', '', '1').product_id).toBe('claude-max-5x-1-months')
+    expect(suggestIds('Claude Max 20x', '', '', '', '1').product_id).toBe('claude-max-20x-1-months')
   })
 
   it('поиск по SKU, региону и номиналу, фильтр по статусу', () => {
@@ -49,6 +52,7 @@ describe('админка каталога: логика', () => {
       { product_id: 'a', region: '', purchase_cost: 10, purchase_currency: 'RUB', purchase_cost_status: 'confirmed', suppliers: { name: 'C', status: 'inactive' } },
       { product_id: 'a', region: '', purchase_cost: 1, purchase_currency: 'USD', purchase_cost_status: 'confirmed', suppliers: { name: 'D', status: 'active' } },
       { product_id: 'a', region: '', purchase_cost: 2, purchase_currency: 'RUB', purchase_cost_status: 'estimate', suppliers: null },
+      { product_id: 'a', region: '', purchase_cost: 1, purchase_currency: 'RUB', purchase_cost_status: 'estimated', suppliers: null },
       { product_id: 'c', region: '', purchase_cost: 75, purchase_currency: 'RUB', purchase_cost_status: 'confirmed', suppliers: null },
       { product_id: 'b', region: '', purchase_cost: 3, purchase_currency: 'RUB', purchase_cost_status: 'unverified', suppliers: null },
     ])

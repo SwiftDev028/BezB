@@ -28,20 +28,24 @@ export default function GamePage() {
   return (
     <>
       <section aria-labelledby="game-title" className="relative overflow-hidden border-b border-line bg-ink">
-        <img
-          src={assetUrl(game.cover)}
-          alt=""
-          aria-hidden="true"
-          width={1260}
-          height={433}
-          decoding="async"
-          className="absolute inset-x-0 top-0 h-56 w-full object-cover object-[48%_center] [-webkit-mask-image:linear-gradient(to_bottom,#000_55%,transparent)] [mask-image:linear-gradient(to_bottom,#000_55%,transparent)] md:inset-y-0 md:left-auto md:right-0 md:h-full md:w-[62%] md:[-webkit-mask-image:linear-gradient(to_right,transparent,#000_45%)] md:[mask-image:linear-gradient(to_right,transparent,#000_45%)]"
-        />
+        {game.cover && (
+          <img
+            src={assetUrl(game.cover)}
+            alt=""
+            aria-hidden="true"
+            width={1260}
+            height={433}
+            decoding="async"
+            className="absolute inset-x-0 top-0 h-56 w-full object-cover object-[48%_center] [-webkit-mask-image:linear-gradient(to_bottom,#000_55%,transparent)] [mask-image:linear-gradient(to_bottom,#000_55%,transparent)] md:inset-y-0 md:left-auto md:right-0 md:h-full md:w-[62%] md:[-webkit-mask-image:linear-gradient(to_right,transparent,#000_45%)] md:[mask-image:linear-gradient(to_right,transparent,#000_45%)]"
+          />
+        )}
         <div className="absolute inset-x-0 bottom-0 h-1.5" style={{ background: game.accent }} aria-hidden="true" />
-        <div className="container-x relative py-12 max-md:pt-52 sm:py-20">
-          <p className="mb-2 font-display text-sm uppercase tracking-[0.25em]" style={{ color: game.accent }}>
-            {game.publisher}
-          </p>
+        <div className={`container-x relative py-12 sm:py-20 ${game.cover ? 'max-md:pt-52' : ''}`}>
+          {game.publisher && (
+            <p className="mb-2 font-display text-sm uppercase tracking-[0.25em]" style={{ color: game.accent }}>
+              {game.publisher}
+            </p>
+          )}
           <h1 id="game-title" className="text-5xl sm:text-6xl lg:text-7xl">
             {game.title}
           </h1>
@@ -85,7 +89,7 @@ export default function GamePage() {
                           ? 'Проверяем каталог…'
                           : count > 0
                             ? `В каталоге: ${count}`
-                            : 'Товаров GTA VI пока нет'}
+                            : `Товаров ${game.title} пока нет`}
                       </span>
                       <span className="inline-flex items-center gap-1 font-semibold text-white group-hover:text-red-hot">
                         Игры {category.title}

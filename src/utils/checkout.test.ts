@@ -23,6 +23,7 @@ describe('проверка формы оформления', () => {
     expect(validateCheckout('x'.repeat(MAX_NAME + 1), 'a@example.com', true).name).toBeDefined()
     expect(validateCheckout('Иван', `${'a'.repeat(250)}@example.com`, true).email).toBeDefined()
   })
+
 })
 
 const customer = { name: '  Иван Демо ', email: ' ivan@example.com ' }

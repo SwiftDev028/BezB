@@ -1,6 +1,5 @@
--- Read-only live-schema preflight for
--- supabase/migrations/202610220004_xbox_game_pass_catalog_only.sql.
--- Run this file only in the Supabase SQL Editor before considering migration 004.
+-- Read-only live-schema preflight for the Xbox migration chain 003–005.
+-- Run this file only in the Supabase SQL Editor before considering those migrations.
 -- Every executable statement is a SELECT over schema/catalog metadata or the
 -- specific Xbox product/cost rows relevant to the migration. This file does
 -- not change data or schema and does not invoke application RPCs.
@@ -76,9 +75,9 @@ from pg_catalog.pg_class c
 join pg_catalog.pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relname = 'catalog_public' and c.relkind = 'v';
 
--- 6. catalog_public output column order and exact type metadata. Migration 004
--- leaves this view unchanged; compare the live output layout with the migration's
--- base catalog contract.
+-- 6. catalog_public output column order and exact type metadata. Migration 003
+-- appends only the two structured subscription-term fields; migration 004 leaves
+-- the view unchanged. Compare the live output layout with both accepted states.
 select c.ordinal_position, c.column_name, c.data_type, c.udt_schema,
        c.udt_name, c.character_maximum_length, c.numeric_precision,
        c.numeric_scale, c.is_nullable
@@ -183,27 +182,27 @@ join pg_catalog.pg_namespace n on n.oid = c.relnamespace
 where (c.relname = 'internal_purchase_costs')
 order by n.nspname, c.relname;
 
--- 14. Compare all 15 existing Xbox products with migration 004's stable IDs,
--- slugs, retail prices, currency and availability/publication states. Existing
+-- 14. Compare all 15 existing Xbox products with the planned stable IDs,
+-- slugs, retail prices, currency, structured terms and publication states. Existing
 -- names, descriptions, instructions and restrictions are shown but not required
 -- to be empty or otherwise rewritten by the migration.
-with expected(product_id, slug, group_family, retail_rub) as (
+with expected(product_id, slug, group_family, retail_rub, months, bonus_months) as (
   values
-    ('xbox-game-pass-ultimate-1-month','xbox-game-pass-ultimate-1-month','ultimate',1490),
-    ('xbox-game-pass-ultimate-2-months','xbox-game-pass-ultimate-2-months','ultimate',2790),
-    ('xbox-game-pass-ultimate-3-months','xbox-game-pass-ultimate-3-months','ultimate',3490),
-    ('xbox-game-pass-ultimate-4-months','xbox-game-pass-ultimate-4-months','ultimate',4990),
-    ('xbox-game-pass-ultimate-5-months','xbox-game-pass-ultimate-5-months','ultimate',6310),
-    ('xbox-game-pass-ultimate-6-months','xbox-game-pass-ultimate-6-months','ultimate',6990),
-    ('xbox-game-pass-ultimate-7-months','xbox-game-pass-ultimate-7-months','ultimate',7670),
-    ('xbox-game-pass-ultimate-11-months','xbox-game-pass-ultimate-11-months','ultimate',10390),
-    ('xbox-game-pass-ultimate-12-months-bonus-1','xbox-game-pass-ultimate-12-months-bonus-1','ultimate',10990),
-    ('xbox-game-pass-premium-1-month','xbox-game-pass-premium-1-month','premium',1290),
-    ('xbox-game-pass-essential-3-months','xbox-game-pass-essential-3-months','essential',1790),
-    ('pc-game-pass-3-months','pc-game-pass-3-months','pc',1990),
-    ('pc-game-pass-6-months','pc-game-pass-6-months','pc',3790),
-    ('pc-game-pass-9-months','pc-game-pass-9-months','pc',4990),
-    ('pc-game-pass-12-months','pc-game-pass-12-months','pc',5990)
+    ('xbox-game-pass-ultimate-1-month','xbox-game-pass-ultimate-1-month','ultimate',1490,1,0),
+    ('xbox-game-pass-ultimate-2-months','xbox-game-pass-ultimate-2-months','ultimate',2790,2,0),
+    ('xbox-game-pass-ultimate-3-months','xbox-game-pass-ultimate-3-months','ultimate',3490,3,0),
+    ('xbox-game-pass-ultimate-4-months','xbox-game-pass-ultimate-4-months','ultimate',4990,4,0),
+    ('xbox-game-pass-ultimate-5-months','xbox-game-pass-ultimate-5-months','ultimate',6310,5,0),
+    ('xbox-game-pass-ultimate-6-months','xbox-game-pass-ultimate-6-months','ultimate',6990,6,0),
+    ('xbox-game-pass-ultimate-7-months','xbox-game-pass-ultimate-7-months','ultimate',7670,7,0),
+    ('xbox-game-pass-ultimate-11-months','xbox-game-pass-ultimate-11-months','ultimate',10390,11,0),
+    ('xbox-game-pass-ultimate-12-months-bonus-1','xbox-game-pass-ultimate-12-months-bonus-1','ultimate',10990,12,1),
+    ('xbox-game-pass-premium-1-month','xbox-game-pass-premium-1-month','premium',1290,1,0),
+    ('xbox-game-pass-essential-3-months','xbox-game-pass-essential-3-months','essential',1790,3,0),
+    ('pc-game-pass-3-months','pc-game-pass-3-months','pc',1990,3,0),
+    ('pc-game-pass-6-months','pc-game-pass-6-months','pc',3790,6,0),
+    ('pc-game-pass-9-months','pc-game-pass-9-months','pc',4990,9,0),
+    ('pc-game-pass-12-months','pc-game-pass-12-months','pc',5990,12,0)
 )
 select e.group_family, e.product_id as expected_product_id, e.slug as expected_slug,
        e.retail_rub as expected_retail_rub,
@@ -212,6 +211,10 @@ select e.group_family, e.product_id as expected_product_id, e.slug as expected_s
        p.description, p.activation_instructions, p.restrictions,
        p.unit_price as existing_retail_price, p.currency as existing_currency,
        p.category, p.product_type, p.active, p.publication_status, p.availability,
+       to_jsonb(p)->>'subscription_months' as existing_subscription_months,
+       to_jsonb(p)->>'subscription_bonus_months' as existing_subscription_bonus_months,
+       e.months as expected_subscription_months,
+       e.bonus_months as expected_subscription_bonus_months,
        (p.product_id = e.product_id) as product_id_matches,
        (p.slug = e.slug) as slug_matches,
        (p.unit_price = e.retail_rub) as retail_price_matches,

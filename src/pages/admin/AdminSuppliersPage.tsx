@@ -9,10 +9,11 @@ import { describeError, margin, variantKey } from '../../utils/adminCatalog'
 import { formatPrice } from '../../utils/format'
 
 type Row = Record<string, any>
-type CostStatus = 'confirmed' | 'estimate' | 'unverified'
+type CostStatus = 'confirmed' | 'estimated' | 'estimate' | 'unverified'
 
 const costStatusLabels: Record<CostStatus, string> = {
   confirmed: 'Подтверждена',
+  estimated: 'Предварительная оценка',
   estimate: 'Предварительная оценка',
   unverified: 'Не проверена',
 }
@@ -194,7 +195,7 @@ function MappingDialog({ busy, suppliers, variants, onClose, onSubmit }: { busy:
       <form id="mapping-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
         <Field label="Поставщик" htmlFor="map-sup"><select id="map-sup" required value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className={inputClass}>{suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
         <Field label="Вариант товара BezB" htmlFor="map-var"><select id="map-var" required value={variant} onChange={(e) => setVariant(e.target.value)} className={inputClass}>{variants.map((p) => <option key={variantKey(p as never)} value={variantKey(p as never)}>{p.title} · {p.region || 'без региона'}</option>)}</select></Field>
-        <Field label="Статус цены" htmlFor="map-status"><select id="map-status" value={status} onChange={(e) => setStatus(e.target.value as CostStatus)} className={inputClass}><option value="unverified">Не проверена</option><option value="estimate">Предварительная оценка</option><option value="confirmed">Подтверждена</option></select></Field>
+        <Field label="Статус цены" htmlFor="map-status"><select id="map-status" value={status} onChange={(e) => setStatus(e.target.value as CostStatus)} className={inputClass}><option value="unverified">Не проверена</option><option value="estimated">Предварительная оценка</option><option value="estimate">Предварительная оценка (старое значение)</option><option value="confirmed">Подтверждена</option></select></Field>
         <Field label="Артикул поставщика" htmlFor="map-sku"><input id="map-sku" required value={sku} onChange={(e) => setSku(e.target.value)} className={inputClass} /></Field>
         <div className="grid grid-cols-[1fr_6rem] gap-3">
           <Field label="Закупка" htmlFor="map-cost"><input id="map-cost" required min="0" step="0.01" type="number" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} className={inputClass} /></Field>
@@ -215,7 +216,7 @@ function CostDialog({ row, busy, onClose, onSubmit }: { row: Row; busy: boolean;
     <Modal title="Закупочная стоимость" onClose={onClose} footer={<><button type="button" className={btnSecondary} onClick={onClose}>Отмена</button><button type="submit" form="cost-form" className={btnPrimary} disabled={busy || !valid}>{busy ? 'Сохраняем…' : 'Сохранить'}</button></>}>
       <form id="cost-form" onSubmit={(e) => { e.preventDefault(); if (valid) onSubmit(cost, status) }} className="space-y-3">
         <p className="text-sm text-silver">{row.products?.title ?? row.product_id} · {row.region || 'без региона'} · {row.suppliers?.name ?? 'поставщик не привязан'}</p>
-        <Field label="Статус цены" htmlFor="cost-status"><select id="cost-status" value={status} onChange={(e) => setStatus(e.target.value as CostStatus)} className={inputClass}><option value="unverified">Не проверена</option><option value="estimate">Предварительная оценка</option><option value="confirmed">Подтверждена</option></select></Field>
+        <Field label="Статус цены" htmlFor="cost-status"><select id="cost-status" value={status} onChange={(e) => setStatus(e.target.value as CostStatus)} className={inputClass}><option value="unverified">Не проверена</option><option value="estimated">Предварительная оценка</option><option value="estimate">Предварительная оценка (старое значение)</option><option value="confirmed">Подтверждена</option></select></Field>
         <Field label={`Новая себестоимость, ${row.purchase_currency}`} htmlFor="cost-v" error={valid ? undefined : 'Укажите число не меньше нуля.'} hint={`Сейчас: ${row.purchase_cost} ${row.purchase_currency}. Цену продажи это не меняет.`}>
           <input id="cost-v" type="number" inputMode="decimal" min="0" step="0.01" value={value} onChange={(e) => setValue(e.target.value)} className={inputClass} autoFocus />
         </Field>

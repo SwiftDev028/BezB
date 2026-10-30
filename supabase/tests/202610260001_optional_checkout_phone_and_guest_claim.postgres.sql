@@ -225,6 +225,17 @@ begin
     when others then
       if sqlerrm <> 'Invalid phone' then raise; end if;
   end;
+
+  begin
+    perform public.place_buyer_order(
+      'Buyer', '1234', 'buyer@example.com', null, null, true, '[]'::jsonb,
+      '30000000-0000-0000-0000-000000000003'
+    );
+    raise exception 'Expected buyer checkout to retain the non-empty phone bounds';
+  exception
+    when others then
+      if sqlerrm <> 'Invalid phone' then raise; end if;
+  end;
 end;
 $$;
 

@@ -43,6 +43,7 @@ export default function ProductPage() {
 
   const category = categoryById[product.category]
   const variants = products.filter((p) => p.groupId && p.groupId === product.groupId)
+  const hasDistinctVariantTitles = new Set(variants.map((variant) => variant.title)).size > 1
   const related = relatedProducts(products, product).filter((p) => p.groupId !== product.groupId)
 
   return (
@@ -104,7 +105,12 @@ export default function ProductPage() {
               >
                 {variants.map((variant) => (
                   <option key={variant.slug} value={variant.slug}>
-                    {[variant.country, subscriptionTerm(variant), variant.denomination !== null && variant.denomination !== undefined ? `${variant.denomination} ${variant.denominationCurrency ?? ''}` : ''].filter(Boolean).join(' · ')} — {variant.price} RUB
+                    {[
+                      hasDistinctVariantTitles ? variant.title : null,
+                      variant.country,
+                      subscriptionTerm(variant),
+                      variant.denomination !== null && variant.denomination !== undefined ? `${variant.denomination} ${variant.denominationCurrency ?? ''}` : '',
+                    ].filter(Boolean).join(' · ')} — {variant.price} RUB
                   </option>
                 ))}
               </select>

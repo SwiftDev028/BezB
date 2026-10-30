@@ -1,8 +1,9 @@
 -- Preserve the 15 Xbox Game Pass products already maintained in public.products.
 -- This migration does not create or update products, catalog_public, order_items,
 -- checkout RPCs, supplier mappings, publication states, or product group IDs.
--- It only creates/protects internal cost storage and adds missing cost records
--- as unverified. Apply manually only after reviewing the live-schema preflight.
+-- It only verifies internal cost storage protections, checks existing products/view,
+-- and adds missing cost records with their intended status. Apply manually only
+-- after reviewing the live-schema preflight.
 begin;
 
 -- Validate the existing catalog contract and every pre-existing Xbox variant.
@@ -85,6 +86,11 @@ begin
     'product_id','group_id','slug','title','platform','currency','unit_price','region','description',
     'category','brand','product_type','denomination','denomination_currency','image_url',
     'activation_instructions','restrictions','popularity','availability','created_at','updated_at'
+  ]::text[] and v_view_columns is distinct from array[
+    'product_id','group_id','slug','title','platform','currency','unit_price','region','description',
+    'category','brand','product_type','denomination','denomination_currency','image_url',
+    'activation_instructions','restrictions','popularity','availability','created_at','updated_at',
+    'subscription_months','subscription_bonus_months'
   ]::text[] then
     raise exception 'Unexpected catalog_public output columns/order: %', v_view_columns;
   end if;
@@ -181,31 +187,8 @@ begin
 end;
 $$;
 
--- Keep owner-maintained costs separate from supplier mappings and the public
--- catalog. New rows are unverified; existing costs and statuses are preserved.
-create table if not exists public.internal_purchase_costs (
-  product_id text not null,
-  region text not null,
-  purchase_cost numeric(12,2) not null check (purchase_cost >= 0),
-  purchase_currency text not null default 'RUB' check (purchase_currency='RUB'),
-  purchase_cost_status text not null default 'unverified'
-    check (purchase_cost_status in ('confirmed','estimate','unverified')),
-  cost_updated_at timestamptz not null default now(),
-  internal_notes text not null default '',
-  primary key (product_id,region),
-  constraint internal_purchase_costs_variant_fk
-    foreign key (product_id,region) references public.products(product_id,region)
-    on update cascade on delete cascade
-);
-alter table public.internal_purchase_costs enable row level security;
-revoke all on public.internal_purchase_costs from public, anon, authenticated;
-grant select, insert, update, delete on public.internal_purchase_costs to authenticated;
-drop policy if exists "Admins manage internal purchase costs" on public.internal_purchase_costs;
-create policy "Admins manage internal purchase costs" on public.internal_purchase_costs
-  for all to authenticated using (public.is_admin()) with check (public.is_admin());
-drop policy if exists "BezB internal purchase costs admin boundary" on public.internal_purchase_costs;
-create policy "BezB internal purchase costs admin boundary" on public.internal_purchase_costs
-  as restrictive for all to authenticated using (public.is_admin()) with check (public.is_admin());
+-- Migration 003 owns the table and its administrator-only RLS/grants. This
+-- migration verifies those protections without resetting policies or ACLs.
 
 -- Reject an existing cost value mismatch rather than silently accepting it or
 -- overwriting it. A pre-existing status, including confirmed, is left intact.
@@ -332,14 +315,14 @@ begin
     raise exception 'internal_purchase_costs is missing validated cost/currency/status checks';
   end if;
 
-  with expected(product_id,cost) as (values
-    ('xbox-game-pass-ultimate-1-month',1199),('xbox-game-pass-ultimate-2-months',2300),
-    ('xbox-game-pass-ultimate-3-months',2900),('xbox-game-pass-ultimate-4-months',4500),
-    ('xbox-game-pass-ultimate-5-months',5044),('xbox-game-pass-ultimate-6-months',5589),
-    ('xbox-game-pass-ultimate-7-months',6133),('xbox-game-pass-ultimate-11-months',8311),
-    ('xbox-game-pass-ultimate-12-months-bonus-1',9400),('xbox-game-pass-premium-1-month',1000),
-    ('xbox-game-pass-essential-3-months',1400),('pc-game-pass-3-months',1600),
-    ('pc-game-pass-6-months',3200),('pc-game-pass-9-months',4300),('pc-game-pass-12-months',5300)
+  with expected(product_id,cost,cost_status) as (values
+    ('xbox-game-pass-ultimate-1-month',1199,'confirmed'),('xbox-game-pass-ultimate-2-months',2300,'confirmed'),
+    ('xbox-game-pass-ultimate-3-months',2900,'confirmed'),('xbox-game-pass-ultimate-4-months',4500,'confirmed'),
+    ('xbox-game-pass-ultimate-5-months',5044,'estimate'),('xbox-game-pass-ultimate-6-months',5589,'estimate'),
+    ('xbox-game-pass-ultimate-7-months',6133,'estimate'),('xbox-game-pass-ultimate-11-months',8311,'estimate'),
+    ('xbox-game-pass-ultimate-12-months-bonus-1',9400,'confirmed'),('xbox-game-pass-premium-1-month',1000,'confirmed'),
+    ('xbox-game-pass-essential-3-months',1400,'confirmed'),('pc-game-pass-3-months',1600,'confirmed'),
+    ('pc-game-pass-6-months',3200,'confirmed'),('pc-game-pass-9-months',4300,'confirmed'),('pc-game-pass-12-months',5300,'confirmed')
   )
   select string_agg(e.product_id, ', ' order by e.product_id) into v_conflicts
   from expected e
@@ -354,20 +337,21 @@ end;
 $$;
 
 -- Add only missing cost rows, using each existing product's actual region.
--- New entries are unverified; ON CONFLICT preserves all existing values/statuses.
-with costs(product_id,purchase_cost) as (values
-  ('xbox-game-pass-ultimate-1-month',1199),('xbox-game-pass-ultimate-2-months',2300),
-  ('xbox-game-pass-ultimate-3-months',2900),('xbox-game-pass-ultimate-4-months',4500),
-  ('xbox-game-pass-ultimate-5-months',5044),('xbox-game-pass-ultimate-6-months',5589),
-  ('xbox-game-pass-ultimate-7-months',6133),('xbox-game-pass-ultimate-11-months',8311),
-  ('xbox-game-pass-ultimate-12-months-bonus-1',9400),('xbox-game-pass-premium-1-month',1000),
-  ('xbox-game-pass-essential-3-months',1400),('pc-game-pass-3-months',1600),
-  ('pc-game-pass-6-months',3200),('pc-game-pass-9-months',4300),('pc-game-pass-12-months',5300)
+-- Statuses distinguish estimates from confirmed purchase values.
+with costs(product_id,purchase_cost,purchase_cost_status) as (values
+  ('xbox-game-pass-ultimate-1-month',1199,'confirmed'),('xbox-game-pass-ultimate-2-months',2300,'confirmed'),
+  ('xbox-game-pass-ultimate-3-months',2900,'confirmed'),('xbox-game-pass-ultimate-4-months',4500,'confirmed'),
+  ('xbox-game-pass-ultimate-5-months',5044,'estimate'),('xbox-game-pass-ultimate-6-months',5589,'estimate'),
+  ('xbox-game-pass-ultimate-7-months',6133,'estimate'),('xbox-game-pass-ultimate-11-months',8311,'estimate'),
+  ('xbox-game-pass-ultimate-12-months-bonus-1',9400,'confirmed'),('xbox-game-pass-premium-1-month',1000,'confirmed'),
+  ('xbox-game-pass-essential-3-months',1400,'confirmed'),('pc-game-pass-3-months',1600,'confirmed'),
+  ('pc-game-pass-6-months',3200,'confirmed'),('pc-game-pass-9-months',4300,'confirmed'),('pc-game-pass-12-months',5300,'confirmed')
 )
 insert into public.internal_purchase_costs
   (product_id,region,purchase_cost,purchase_currency,purchase_cost_status,cost_updated_at,internal_notes)
-select c.product_id,p.region,c.purchase_cost,'RUB','unverified',now(),
-       'Imported from migration seed; verify internally before treating as confirmed.'
+select c.product_id,p.region,c.purchase_cost,'RUB',c.purchase_cost_status,now(),
+       case when c.purchase_cost_status='estimate' then 'Предварительная оценка; не считать подтверждённой.'
+            else 'Подтверждённая закупочная стоимость; поставщик не привязан.' end
 from costs c
 join public.products p on p.product_id=c.product_id
 on conflict (product_id,region) do nothing;
@@ -378,14 +362,14 @@ do $$
 declare
   v_missing text;
 begin
-  with expected(product_id,cost) as (values
-    ('xbox-game-pass-ultimate-1-month',1199),('xbox-game-pass-ultimate-2-months',2300),
-    ('xbox-game-pass-ultimate-3-months',2900),('xbox-game-pass-ultimate-4-months',4500),
-    ('xbox-game-pass-ultimate-5-months',5044),('xbox-game-pass-ultimate-6-months',5589),
-    ('xbox-game-pass-ultimate-7-months',6133),('xbox-game-pass-ultimate-11-months',8311),
-    ('xbox-game-pass-ultimate-12-months-bonus-1',9400),('xbox-game-pass-premium-1-month',1000),
-    ('xbox-game-pass-essential-3-months',1400),('pc-game-pass-3-months',1600),
-    ('pc-game-pass-6-months',3200),('pc-game-pass-9-months',4300),('pc-game-pass-12-months',5300)
+  with expected(product_id,cost,cost_status) as (values
+    ('xbox-game-pass-ultimate-1-month',1199,'confirmed'),('xbox-game-pass-ultimate-2-months',2300,'confirmed'),
+    ('xbox-game-pass-ultimate-3-months',2900,'confirmed'),('xbox-game-pass-ultimate-4-months',4500,'confirmed'),
+    ('xbox-game-pass-ultimate-5-months',5044,'estimate'),('xbox-game-pass-ultimate-6-months',5589,'estimate'),
+    ('xbox-game-pass-ultimate-7-months',6133,'estimate'),('xbox-game-pass-ultimate-11-months',8311,'estimate'),
+    ('xbox-game-pass-ultimate-12-months-bonus-1',9400,'confirmed'),('xbox-game-pass-premium-1-month',1000,'confirmed'),
+    ('xbox-game-pass-essential-3-months',1400,'confirmed'),('pc-game-pass-3-months',1600,'confirmed'),
+    ('pc-game-pass-6-months',3200,'confirmed'),('pc-game-pass-9-months',4300,'confirmed'),('pc-game-pass-12-months',5300,'confirmed')
   )
   select string_agg(e.product_id, ', ' order by e.product_id) into v_missing
   from expected e
@@ -393,7 +377,8 @@ begin
   left join public.internal_purchase_costs c on c.product_id=p.product_id and c.region=p.region
   where p.product_id is null or c.product_id is null
      or c.purchase_cost is distinct from e.cost::numeric
-     or c.purchase_currency is distinct from 'RUB';
+     or c.purchase_currency is distinct from 'RUB'
+     or c.purchase_cost_status is distinct from e.cost_status;
   if v_missing is not null then
     raise exception 'Xbox cost verification failed for products: %', v_missing;
   end if;

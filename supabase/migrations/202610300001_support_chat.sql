@@ -204,7 +204,7 @@ as $$
 $$;
 
 drop function if exists public.place_public_order_with_support(text,text,text,text,text,boolean,jsonb);
-create function public.place_public_order_with_support(
+create or replace function public.place_public_order_with_support(
   p_customer_name text,
   p_customer_phone text,
   p_customer_email text,

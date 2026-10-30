@@ -3,25 +3,25 @@
 begin;
 
 alter table public.products
-  add column if not exists subscription_months smallint,
-  add column if not exists subscription_bonus_months smallint not null default 0;
+  add column if not exists subscription_months integer,
+  add column if not exists subscription_bonus_months integer not null default 0;
 
 alter table public.order_items
-  add column if not exists subscription_months smallint,
-  add column if not exists subscription_bonus_months smallint not null default 0;
+  add column if not exists subscription_months integer,
+  add column if not exists subscription_bonus_months integer not null default 0;
 
 alter table public.products drop constraint if exists products_subscription_months_check;
 alter table public.products add constraint products_subscription_months_check
   check (subscription_months is null or subscription_months between 1 and 120);
 alter table public.products drop constraint if exists products_subscription_bonus_months_check;
 alter table public.products add constraint products_subscription_bonus_months_check
-  check (subscription_bonus_months between 0 and 120 and (subscription_bonus_months = 0 or subscription_months is not null));
+  check (subscription_bonus_months between 0 and 12 and (subscription_bonus_months = 0 or subscription_months is not null));
 alter table public.order_items drop constraint if exists order_items_subscription_months_check;
 alter table public.order_items add constraint order_items_subscription_months_check
   check (subscription_months is null or subscription_months between 1 and 120);
 alter table public.order_items drop constraint if exists order_items_subscription_bonus_months_check;
 alter table public.order_items add constraint order_items_subscription_bonus_months_check
-  check (subscription_bonus_months between 0 and 120 and (subscription_bonus_months = 0 or subscription_months is not null));
+  check (subscription_bonus_months between 0 and 12 and (subscription_bonus_months = 0 or subscription_months is not null));
 
 -- Supplier-linked costs keep their existing required supplier and SKU fields.
 -- Missing legacy classification is never treated as confirmation.
@@ -29,7 +29,7 @@ alter table public.supplier_products
   add column if not exists purchase_cost_status text not null default 'unverified';
 alter table public.supplier_products drop constraint if exists supplier_products_purchase_cost_status_check;
 alter table public.supplier_products add constraint supplier_products_purchase_cost_status_check
-  check (purchase_cost_status in ('confirmed', 'estimate', 'unverified'));
+  check (purchase_cost_status in ('confirmed', 'estimated', 'estimate', 'unverified'));
 
 -- Owner-maintained internal costs do not represent supplier mappings.
 create table if not exists public.internal_purchase_costs (
@@ -67,8 +67,8 @@ begin
   where a.attrelid = 'public.products'::regclass
     and a.attname in ('subscription_months', 'subscription_bonus_months')
     and a.attnum > 0 and not a.attisdropped;
-  if v_types is distinct from array['smallint', 'smallint']::text[] then
-    raise exception 'Expected products subscription term columns to be smallint; found %', v_types;
+  if v_types is distinct from array['integer', 'integer']::text[] then
+    raise exception 'Expected products subscription term columns to be integer; found %', v_types;
   end if;
   select array_agg(pg_catalog.format_type(a.atttypid, a.atttypmod) order by a.attname)
     into v_types
@@ -76,8 +76,8 @@ begin
   where a.attrelid = 'public.order_items'::regclass
     and a.attname in ('subscription_months', 'subscription_bonus_months')
     and a.attnum > 0 and not a.attisdropped;
-  if v_types is distinct from array['smallint', 'smallint']::text[] then
-    raise exception 'Expected order_items subscription term columns to be smallint; found %', v_types;
+  if v_types is distinct from array['integer', 'integer']::text[] then
+    raise exception 'Expected order_items subscription term columns to be integer; found %', v_types;
   end if;
   if (select a.atttypid from pg_catalog.pg_attribute a where a.attrelid='public.supplier_products'::regclass and a.attname='purchase_cost_status' and not a.attisdropped) <> 'text'::regtype then
     raise exception 'Expected supplier_products.purchase_cost_status to be text';
@@ -128,14 +128,14 @@ begin
     ('products','platform','text'),('products','currency','text'),('products','unit_price','numeric'),
     ('products','active','boolean'),('products','category','text'),('products','product_type','text'),
     ('products','denomination','numeric'),('products','denomination_currency','text'),
-    ('products','subscription_months','smallint'),('products','subscription_bonus_months','smallint'),
+    ('products','subscription_months','integer'),('products','subscription_bonus_months','integer'),
     ('products','availability','text'),('products','publication_status','text'),('products','description','text'),
     ('products','activation_instructions','text'),('products','restrictions','jsonb'),
     ('products','created_at','timestamp with time zone'),('products','updated_at','timestamp with time zone'),
     ('order_items','order_id','uuid'),('order_items','product_id','text'),('order_items','product_name','text'),
     ('order_items','platform','text'),('order_items','region','text'),('order_items','denomination','numeric'),
-    ('order_items','denomination_currency','text'),('order_items','subscription_months','smallint'),
-    ('order_items','subscription_bonus_months','smallint'),('order_items','quantity','integer'),
+    ('order_items','denomination_currency','text'),('order_items','subscription_months','integer'),
+    ('order_items','subscription_bonus_months','integer'),('order_items','quantity','integer'),
     ('order_items','unit_price','numeric'),('order_items','id','uuid'),
     ('internal_purchase_costs','product_id','text'),('internal_purchase_costs','region','text'),
     ('internal_purchase_costs','purchase_cost','numeric'),('internal_purchase_costs','purchase_currency','text'),
@@ -348,8 +348,8 @@ begin
      or p.product_type is distinct from 'subscription'
      or p.denomination is not null
      or p.denomination_currency is not null
-     or (p.subscription_months is not null and p.subscription_months is distinct from s.months::smallint)
-     or (p.subscription_bonus_months is not null and p.subscription_bonus_months is distinct from s.bonus_months::smallint)
+     or (p.subscription_months is not null and p.subscription_months is distinct from s.months::integer)
+     or (p.subscription_bonus_months is not null and p.subscription_bonus_months is distinct from s.bonus_months::integer)
      or p.availability is distinct from 'unavailable'
      or p.publication_status is distinct from 'draft';
   if v_conflict is not null then
@@ -519,8 +519,8 @@ begin
      or product_type is distinct from 'subscription'
      or publication_status is distinct from 'draft'
      or availability is distinct from 'unavailable'
-     or (subscription_months is not null and subscription_months is distinct from months::smallint)
-     or (subscription_bonus_months is not null and subscription_bonus_months is distinct from bonus_months::smallint);
+     or (subscription_months is not null and subscription_months is distinct from months::integer)
+     or (subscription_bonus_months is not null and subscription_bonus_months is distinct from bonus_months::integer);
   if v_conflicts is not null then
     raise exception 'Existing Xbox variants are missing or conflict with expected IDs/prices/statuses: %', v_conflicts;
   end if;
@@ -567,8 +567,8 @@ with terms(product_id, months, bonus_months) as (values
   ('pc-game-pass-6-months',6,0),('pc-game-pass-9-months',9,0),('pc-game-pass-12-months',12,0)
 )
 update public.products p
-set subscription_months=t.months::smallint,
-    subscription_bonus_months=t.bonus_months::smallint
+set subscription_months=t.months::integer,
+    subscription_bonus_months=t.bonus_months::integer
 from terms t
 where p.product_id=t.product_id and p.region='';
 
@@ -815,8 +815,8 @@ begin
     x->>'region',
     (x->>'denomination')::numeric,
     x->>'denomination_currency',
-    (x->>'subscription_months')::smallint,
-    (x->>'subscription_bonus_months')::smallint,
+    (x->>'subscription_months')::integer,
+    (x->>'subscription_bonus_months')::integer,
     (x->>'quantity')::integer,
     (x->>'unit_price')::numeric
   from jsonb_array_elements(v_lines) x;
@@ -886,7 +886,7 @@ begin
   insert into public.orders(customer_name,customer_phone,customer_email,delivery_address,customer_comment,consent_at,status,total_amount,customer_user_id,payment_status,fulfillment_status)
     values(btrim(p_customer_name),btrim(p_customer_phone),lower(btrim(p_customer_email)),nullif(btrim(coalesce(p_delivery_address,'')),''),nullif(btrim(coalesce(p_customer_comment,'')),''),now(),'new',v_total,v_user_id,'unpaid','new') returning * into v_order;
   insert into public.order_items(order_id,product_id,product_name,platform,region,denomination,denomination_currency,subscription_months,subscription_bonus_months,quantity,unit_price)
-    select v_order.id,x->>'product_id',x->>'product_name',x->>'platform',x->>'region',(x->>'denomination')::numeric,x->>'denomination_currency',(x->>'subscription_months')::smallint,(x->>'subscription_bonus_months')::smallint,(x->>'quantity')::integer,(x->>'unit_price')::numeric from jsonb_array_elements(v_lines) x;
+    select v_order.id,x->>'product_id',x->>'product_name',x->>'platform',x->>'region',(x->>'denomination')::numeric,x->>'denomination_currency',(x->>'subscription_months')::integer,(x->>'subscription_bonus_months')::integer,(x->>'quantity')::integer,(x->>'unit_price')::numeric from jsonb_array_elements(v_lines) x;
   update public.order_idempotency set order_id=v_order.id where customer_user_id=v_user_id and idempotency_key=p_idempotency_key;
   perform public.log_order_action(v_order.id,'order_created','{}'::jsonb);
   return jsonb_build_object('id',v_order.id,'order_number',v_order.order_number,'created_at',v_order.created_at,'consent_at',v_order.consent_at,'total_amount',v_order.total_amount,'items',v_lines);

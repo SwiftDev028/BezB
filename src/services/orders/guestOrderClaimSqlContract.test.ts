@@ -24,6 +24,12 @@ describe('optional checkout phone and guest claim SQL contract', () => {
     expect(migration).toContain("execute v_definition")
   })
 
+  it('allows an omitted phone while retaining length checks for a provided phone', () => {
+    expect(migration).toMatch(/if nullif\(btrim\(coalesce\(p_customer_phone,/)
+    expect(migration).toMatch(/is not null and length\(btrim\(p_customer_phone\)\) not between 5 and 40/)
+    expect(migration).toMatch(/'btrim\(p_customer_phone\)'[\s\S]*'coalesce\(btrim\(p_customer_phone\),/)
+  })
+
   it.each(['place_public_order', 'place_buyer_order'] as const)(
     'retains %s consent, server price, and availability checks in its source definition',
     (name) => {

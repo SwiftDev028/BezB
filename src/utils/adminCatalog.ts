@@ -93,7 +93,7 @@ interface MappingRow {
   region: string
   purchase_cost: number | string
   purchase_currency: string
-  purchase_cost_status?: 'confirmed' | 'estimate' | 'unverified' | null
+  purchase_cost_status?: 'confirmed' | 'estimated' | 'estimate' | 'unverified' | null
   suppliers?: { name?: string; status?: string } | null
 }
 
