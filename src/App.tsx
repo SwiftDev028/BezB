@@ -29,6 +29,10 @@ const MyOrdersPage = lazy(() => import('./pages/MyOrdersPage'))
 const AdminCatalogPage = lazy(() => import('./pages/admin/AdminCatalogPage'))
 const AdminSuppliersPage = lazy(() => import('./pages/admin/AdminSuppliersPage'))
 const AdminInventoryPage = lazy(() => import('./pages/admin/AdminInventoryPage'))
+const SupportThreadsPage = lazy(() => import('./pages/SupportThreadsPage'))
+const SupportChatPage = lazy(() => import('./pages/SupportChatPage'))
+const SupportOrderPage = lazy(() => import('./pages/SupportOrderPage'))
+const AdminSupportInboxPage = lazy(() => import('./pages/SupportInboxPage'))
 
 function PageFallback() {
   return (
@@ -62,6 +66,9 @@ export default function App() {
           <Route path="contacts" element={<ContactsPage />} />
           <Route path="account" element={<AccountPage />} />
           <Route path="account/orders" element={<MyOrdersPage />} />
+          <Route path="support" element={<SupportThreadsPage />} />
+          <Route path="support/order/:orderId" element={<SupportOrderPage />} />
+          <Route path="support/:orderId" element={<SupportChatPage />} />
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="orders" replace />} />
             <Route path="orders" element={<OrdersProvider><AdminOrdersPage /></OrdersProvider>} />
@@ -69,6 +76,7 @@ export default function App() {
             <Route path="catalog" element={<AdminCatalogPage />} />
             <Route path="suppliers" element={<AdminSuppliersPage />} />
             <Route path="inventory" element={<AdminInventoryPage />} />
+            <Route path="support" element={<AdminSupportInboxPage />} />
           </Route>
           <Route path="404" element={<NotFoundPage />} />
           <Route path="*" element={<NotFoundPage />} />

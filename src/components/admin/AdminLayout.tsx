@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { ClipboardList, KeyRound, LogOut, Package, Truck, type LucideIcon } from 'lucide-react'
+import { ClipboardList, KeyRound, LogOut, MessageSquare, Package, Truck, type LucideIcon } from 'lucide-react'
 import { requireSupabase, supabaseConfigured } from '../../services/supabase'
 import { btnPrimary, inputClass } from '../common/ui'
 
@@ -116,7 +116,7 @@ export default function AdminLayout() {
 }
 
 const navGroups: { title: string; items: { to: string; label: string; Icon: LucideIcon }[] }[] = [
-  { title: 'Продажи', items: [{ to: '/admin/orders', label: 'Заказы', Icon: ClipboardList }] },
+  { title: 'Продажи', items: [{ to: '/admin/orders', label: 'Заказы', Icon: ClipboardList }, { to: '/admin/support', label: 'Поддержка', Icon: MessageSquare }] },
   {
     title: 'Каталог',
     items: [
