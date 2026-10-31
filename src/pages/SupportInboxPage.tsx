@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MessageSquare } from 'lucide-react'
 import { SupportConversation } from '../components/support/SupportConversation'
@@ -9,6 +9,30 @@ import type { SupportThread } from '../types'
 import { formatDateTime } from '../utils/formatDate'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
+function mergeThread(current: SupportThread, incoming: SupportThread): SupportThread {
+  const currentUpdatedAt = current.updatedAt ?? current.lastMessageAt ?? current.createdAt
+  const incomingUpdatedAt = incoming.updatedAt ?? incoming.lastMessageAt ?? incoming.createdAt
+  const incomingIsNewer = incomingUpdatedAt >= currentUpdatedAt
+  const currentLastMessageAt = current.lastMessageAt ?? ''
+  const incomingLastMessageAt = incoming.lastMessageAt ?? ''
+  const messagesById = new Map(current.messages.map((message) => [message.id, message]))
+  for (const message of incoming.messages) messagesById.set(message.id, message)
+
+  return {
+    ...current,
+    ...(incomingIsNewer ? incoming : {}),
+    messages: [...messagesById.values()].sort((a, b) =>
+      a.sentAt.localeCompare(b.sentAt) || a.id.localeCompare(b.id),
+    ),
+    lastMessageAt: incomingLastMessageAt >= currentLastMessageAt
+      ? incoming.lastMessageAt
+      : current.lastMessageAt,
+    lastMessage: incomingLastMessageAt >= currentLastMessageAt
+      ? incoming.lastMessage
+      : current.lastMessage,
+  }
+}
+
 export default function SupportInboxPage() {
   useDocumentTitle('Админ: поддержка')
   const [threads, setThreads] = useState<SupportThread[]>([])
@@ -17,25 +41,48 @@ export default function SupportInboxPage() {
   const [error, setError] = useState('')
   const [guestLink, setGuestLink] = useState('')
   const [notice, setNotice] = useState('')
+  const selectedIdRef = useRef<string | null>(null)
+  const listRequestInFlight = useRef(false)
+  const detailRequestsInFlight = useRef(new Set<string>())
+  const threadsRevision = useRef(0)
 
   const load = useCallback(async () => {
-    const result = await supportRepository.listAdminThreads()
-    if (result.ok) {
-      setThreads(result.value)
-      setError('')
-    } else {
-      setError(result.error)
+    if (listRequestInFlight.current) return
+    listRequestInFlight.current = true
+    const requestRevision = threadsRevision.current
+    try {
+      const result = await supportRepository.listAdminThreads()
+      if (requestRevision !== threadsRevision.current) return
+      if (result.ok) {
+        setThreads((current) => result.value.map((incoming) => {
+          const existing = current.find((thread) => thread.orderId === incoming.orderId)
+          return existing ? mergeThread(existing, incoming) : incoming
+        }))
+        setError('')
+      } else {
+        setError(result.error)
+      }
+    } catch (loadError) {
+      if (requestRevision === threadsRevision.current) {
+        setError(loadError instanceof Error ? loadError.message : 'Не удалось обновить список обращений.')
+      }
+    } finally {
+      listRequestInFlight.current = false
+      setLoading(false)
     }
-    setLoading(false)
   }, [])
 
   useEffect(() => {
     void load()
+    const intervalId = window.setInterval(() => void load(), 5000)
     const onStorage = (event: StorageEvent) => {
       if (event.key === null || event.key === 'bezb:support:threads') void load()
     }
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener('storage', onStorage)
+    }
   }, [load])
 
   const selected = useMemo(
@@ -43,15 +90,51 @@ export default function SupportInboxPage() {
     [threads, selectedId],
   )
 
-  const selectThread = async (thread: SupportThread) => {
+  useEffect(() => {
+    if (!selectedId) return
+    let active = true
+    const refresh = async () => {
+      if (!active || detailRequestsInFlight.current.has(selectedId) || selectedIdRef.current !== selectedId) return
+      detailRequestsInFlight.current.add(selectedId)
+      const requestRevision = threadsRevision.current
+      try {
+        const result = await supportRepository.getAdminThread(selectedId)
+        if (!active || selectedIdRef.current !== selectedId || requestRevision !== threadsRevision.current) return
+        if (result.ok) {
+          threadsRevision.current += 1
+          setThreads((current) => current.map((thread) => {
+            return thread.orderId === result.value.orderId ? mergeThread(thread, result.value) : thread
+          }))
+          setError('')
+        } else {
+          setError(result.error)
+        }
+      } catch (loadError) {
+        if (active && selectedIdRef.current === selectedId) {
+          setError(loadError instanceof Error ? loadError.message : 'Не удалось обновить переписку.')
+        }
+      } finally {
+        detailRequestsInFlight.current.delete(selectedId)
+      }
+    }
+    void refresh()
+    const intervalId = window.setInterval(() => void refresh(), 5000)
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+    }
+  }, [selectedId])
+
+  const selectThread = (thread: SupportThread) => {
+    selectedIdRef.current = thread.orderId
     setSelectedId(thread.orderId)
-    const result = await supportRepository.getAdminThread(thread.orderId)
-    if (result.ok) setThreads((current) => current.map((item) => item.orderId === result.value.orderId ? result.value : item))
-    else setError(result.error)
   }
 
   const updateThread = (updated: SupportThread) => {
-    setThreads((current) => current.map((thread) => thread.orderId === updated.orderId ? updated : thread))
+    threadsRevision.current += 1
+    setThreads((current) => current.map((thread) =>
+      thread.orderId === updated.orderId ? mergeThread(thread, updated) : thread,
+    ))
   }
 
   const changeStatus = async () => {
