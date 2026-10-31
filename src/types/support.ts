@@ -26,6 +26,16 @@ export interface ManualDelivery {
   additionalData: string
   instructions: string
   createdAt: string
+  updatedAt: string
+  revision: number
+  history: ManualDeliveryAuditEntry[]
+}
+
+export interface ManualDeliveryAuditEntry {
+  revision: number
+  changedFields: string[]
+  changedAt: string
+  changedBy: string | null
 }
 
 export interface ManualDeliveryInput {
@@ -42,6 +52,11 @@ export interface ManualDeliveryIssueResult {
   deliveryIds: string[]
   messageId: string
   fulfillmentStatus: 'processing' | 'delivered'
+}
+
+export interface ManualDeliveryUpdateResult {
+  delivery: ManualDelivery
+  messageId: string | null
 }
 
 export interface SupportThread {

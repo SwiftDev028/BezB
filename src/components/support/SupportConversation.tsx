@@ -41,7 +41,13 @@ function DeliveredItem({ delivery }: { delivery: ManualDelivery }) {
   return (
     <article className="space-y-3 border border-green-700/50 bg-graphite p-4" aria-label={`Выданный товар: ${delivery.title}`}>
       <h3 className="text-lg font-semibold text-white">🎁 Ваш заказ готов!</h3>
-      <p className="text-sm text-silver">Товар: <strong className="text-white">{delivery.title}</strong></p>
+      <p className="text-sm text-silver"><strong className="text-white">{delivery.title}</strong></p>
+      <p className="text-xs text-silver">Статус: Выдан</p>
+      {delivery.revision > 1 && (
+        <p role="status" className="border-l-2 border-red pl-2 text-xs text-silver">
+          Данные выдачи обновлены {formatDateTime(delivery.updatedAt)}. Используйте эту актуальную версию.
+        </p>
+      )}
       {fields.map(([label, value]) => (
         <div key={label} className="space-y-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -50,7 +56,9 @@ function DeliveredItem({ delivery }: { delivery: ManualDelivery }) {
               Скопировать {label.toLowerCase()}
             </button>
           </div>
-          <code className="block whitespace-pre-wrap break-all rounded bg-ink p-2 text-sm text-white">{value}</code>
+          {label === 'Логин' && value.includes('@')
+            ? <a className="block break-all rounded bg-ink p-2 text-sm text-white underline" href={`mailto:${value}`}>{value}</a>
+            : <code className="block whitespace-pre-wrap break-all rounded bg-ink p-2 text-sm text-white">{value}</code>}
           {copied === label && <span role="status" className="text-xs text-silver">Скопировано</span>}
         </div>
       ))}
@@ -85,6 +93,14 @@ export function SupportConversation({
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const latestDeliveryMessage = new Map<string, string>()
+  if (manualDeliveries.length > 0) {
+    for (const message of thread.messages) {
+      for (const id of manualDeliveryIds(message.text) ?? []) {
+        latestDeliveryMessage.set(id, message.id)
+      }
+    }
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -124,6 +140,7 @@ export function SupportConversation({
             if (deliveryIds) {
               const deliveriesById = new Map(manualDeliveries.map((delivery) => [delivery.id, delivery]))
               const messageDeliveries = deliveryIds.flatMap((id) => {
+                if (manualDeliveries.length > 0 && latestDeliveryMessage.get(id) !== message.id) return []
                 const delivery = deliveriesById.get(id)
                 return delivery ? [delivery] : []
               })

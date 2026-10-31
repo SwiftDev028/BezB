@@ -1,4 +1,4 @@
-import type { ManualDelivery, ManualDeliveryInput, ManualDeliveryIssueResult, Result, SupportMessage, SupportThread } from '../../types'
+import type { ManualDelivery, ManualDeliveryAuditEntry, ManualDeliveryInput, ManualDeliveryIssueResult, ManualDeliveryUpdateResult, Result, SupportMessage, SupportThread } from '../../types'
 import type { SupportRepository } from './SupportRepository'
 import { requireSupabase } from '../supabase'
 
@@ -105,8 +105,29 @@ function mapManualDelivery(value: unknown): ManualDelivery | null {
     typeof row.id !== 'string' ||
     typeof row.order_item_id !== 'string' ||
     typeof row.title !== 'string' ||
-    typeof row.created_at !== 'string'
+    typeof row.created_at !== 'string' ||
+    (row.updated_at !== undefined && typeof row.updated_at !== 'string') ||
+    (row.revision !== undefined && typeof row.revision !== 'number') ||
+    (row.history !== undefined && !Array.isArray(row.history))
   ) return null
+  const history = (Array.isArray(row.history) ? row.history : []).map((value): ManualDeliveryAuditEntry | null => {
+    if (!value || typeof value !== 'object') return null
+    const entry = value as Row
+    if (
+      typeof entry.revision !== 'number' ||
+      !Array.isArray(entry.changed_fields) ||
+      !entry.changed_fields.every((field) => typeof field === 'string') ||
+      typeof entry.changed_at !== 'string' ||
+      (entry.changed_by !== null && typeof entry.changed_by !== 'string')
+    ) return null
+    return {
+      revision: entry.revision,
+      changedFields: entry.changed_fields,
+      changedAt: entry.changed_at,
+      changedBy: entry.changed_by,
+    }
+  })
+  if (history.some((entry) => entry === null)) return null
   return {
     id: row.id,
     orderItemId: row.order_item_id,
@@ -117,6 +138,9 @@ function mapManualDelivery(value: unknown): ManualDelivery | null {
     additionalData: typeof row.additional_data === 'string' ? row.additional_data : '',
     instructions: typeof row.instructions === 'string' ? row.instructions : '',
     createdAt: row.created_at,
+    updatedAt: typeof row.updated_at === 'string' ? row.updated_at : row.created_at,
+    revision: typeof row.revision === 'number' ? row.revision : 1,
+    history: history as ManualDeliveryAuditEntry[],
   }
 }
 
@@ -297,6 +321,40 @@ export const supabaseSupportRepository: SupportRepository = {
         deliveryIds: row.delivery_ids,
         messageId: row.message_id,
         fulfillmentStatus: row.fulfillment_status,
+      },
+    }
+  },
+
+  async updateManualDelivery(orderId, deliveryId, expectedRevision, delivery) {
+    const { data, error } = await requireSupabase().rpc('support_admin_update_manual_delivery', {
+      p_order_id: orderId,
+      p_delivery_id: deliveryId,
+      p_expected_revision: expectedRevision,
+      p_delivery: {
+        title: delivery.title,
+        activation_code: delivery.activationCode,
+        login: delivery.login,
+        password: delivery.password,
+        additional_data: delivery.additionalData,
+        instructions: delivery.instructions,
+      },
+    })
+    const err = failure<ManualDeliveryUpdateResult>(error, 'Не удалось сохранить изменения выдачи.')
+    if (err) return err
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return { ok: false, error: 'Сервер вернул некорректный результат изменения выдачи.' }
+    }
+    const row = data as Row
+    const updatedDelivery = mapManualDelivery(row.delivery)
+    if (
+      !updatedDelivery ||
+      (row.message_id !== null && typeof row.message_id !== 'string')
+    ) return { ok: false, error: 'Сервер вернул некорректный результат изменения выдачи.' }
+    return {
+      ok: true,
+      value: {
+        delivery: updatedDelivery,
+        messageId: typeof row.message_id === 'string' ? row.message_id : null,
       },
     }
   },

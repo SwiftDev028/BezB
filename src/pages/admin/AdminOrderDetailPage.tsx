@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Info, SearchX } from 'lucide-react'
 import { FulfillmentBadge, PaymentBadge } from '../../components/admin/StatusBadge'
+import { AdminOrderSupportChat } from '../../components/admin/AdminOrderSupportChat'
 import { OrderHistory } from '../../components/admin/OrderHistory'
 import { EmptyState } from '../../components/common/EmptyState'
 import { btnPrimary, btnSecondary, inputClass } from '../../components/common/ui'
@@ -54,7 +55,7 @@ export default function AdminOrderDetailPage() {
     setManualDeliveries(manual.value)
   },[id])
   useEffect(()=>{void loadFulfillment().catch(e=>setActionError(e instanceof Error?e.message:'Не удалось загрузить выдачу.'))},[loadFulfillment])
-  const auditEvents=useMemo(()=>audit.map((e)=>({id:e.id,type:'comment' as const,at:e.created_at,actor:e.actor_id?`Администратор · ${String(e.actor_id).slice(0,8)}`:'Система',text:({payment_confirmed:'Оплата подтверждена вручную',processing_started:'Начата обработка',order_cancelled:'Заказ отменён',code_assigned:'Цифровой код назначен',digital_goods_delivered:'Цифровые товары выданы',manual_delivery_started:'Ручная выдача начата',delivery_email_marked_sent:'Ручная отправка email отмечена',order_created:'Заказ создан'} as Record<string,string>)[e.event_type]??'Действие администратора'})),[audit])
+  const auditEvents=useMemo(()=>audit.map((e)=>({id:e.id,type:'comment' as const,at:e.created_at,actor:e.actor_id?`Администратор · ${String(e.actor_id).slice(0,8)}`:'Система',text:({payment_confirmed:'Оплата подтверждена вручную',processing_started:'Начата обработка',order_cancelled:'Заказ отменён',code_assigned:'Цифровой код назначен',digital_goods_delivered:'Цифровые товары выданы',manual_delivery_started:'Ручная выдача начата',manual_delivery_updated:'Данные ручной выдачи изменены',delivery_email_marked_sent:'Ручная отправка email отмечена',order_created:'Заказ создан'} as Record<string,string>)[e.event_type]??'Действие администратора'})),[audit])
 
   // Поле выдачи подхватывает сохранённое значение при открытии заказа
   const savedDelivery = order?.delivery.note ?? ''
@@ -92,6 +93,29 @@ export default function AdminOrderDetailPage() {
     try{
       const result=await supportRepository.issueManualDeliveries(order.id,requestKey,deliveries)
       if(!result.ok){setActionError(result.error);return false}
+      const issuedAt=new Date().toISOString()
+      setManualDeliveries(current=>{
+        const byId=new Map(current.map(item=>[item.id,item]))
+        result.value.deliveryIds.forEach((deliveryId,index)=>{
+          const entry=deliveries[index]
+          if(!entry||byId.has(deliveryId))return
+          byId.set(deliveryId,{
+            id:deliveryId,
+            orderItemId:entry.orderItemId,
+            title:entry.title,
+            activationCode:entry.activationCode,
+            login:entry.login,
+            password:entry.password,
+            additionalData:entry.additionalData,
+            instructions:entry.instructions,
+            createdAt:issuedAt,
+            updatedAt:issuedAt,
+            revision:1,
+            history:[],
+          })
+        })
+        return [...byId.values()]
+      })
       setActionMessage(result.value.fulfillmentStatus==='delivered'?'Товар выдан, сообщение отправлено, заказ выполнен.':'Частичная выдача сохранена и отправлена в чат; заказ остаётся в обработке.')
       try{await Promise.all([refresh(),loadFulfillment()])}catch(e){setActionError(e instanceof Error?`Выдача сохранена, но данные страницы не обновились: ${e.message}`:'Выдача сохранена, но данные страницы не обновились.')}
       return true
@@ -107,9 +131,25 @@ export default function AdminOrderDetailPage() {
     }catch(e){setActionError(e instanceof Error?e.message:'Не удалось повторно отправить выдачу.')}
     finally{setActionBusy(false)}
   }
+  const updateManualDelivery=async(deliveryId:string,revision:number,delivery:ManualDeliveryInput)=>{
+    setActionBusy(true);setActionError('');setActionMessage('')
+    try{
+      const result=await supportRepository.updateManualDelivery(order.id,deliveryId,revision,delivery)
+      if(!result.ok){setActionError(result.error);return false}
+      setManualDeliveries(current=>current.map(item=>item.id===deliveryId?result.value.delivery:item))
+      setActionMessage('Изменения сохранены и обновление отправлено покупателю в чат.')
+      try{await Promise.all([refresh(),loadFulfillment()])}catch(e){setActionError(e instanceof Error?`Изменения сохранены, но данные страницы не обновились: ${e.message}`:'Изменения сохранены, но данные страницы не обновились.')}
+      return true
+    }catch(e){setActionError(e instanceof Error?e.message:'Не удалось сохранить изменения выдачи.');return false}
+    finally{setActionBusy(false)}
+  }
   const inventoryDeliveredCounts=Object.fromEntries(order.items.map(item=>[
     item.id??'',
     assignedCodes.filter(code=>code.assigned_order_item_id===item.id&&code.status==='delivered').length,
+  ]))
+  const inventoryReservedCounts=Object.fromEntries(order.items.map(item=>[
+    item.id??'',
+    assignedCodes.filter(code=>code.assigned_order_item_id===item.id&&code.status==='reserved').length,
   ]))
   const canDeliver=order ? order.items.every(item=>assignedCodes.filter(c=>c.assigned_order_item_id===item.id&&c.status==='reserved').length===item.quantity) : false
   const hasManualDelivery=manualDeliveries.length>0
@@ -156,6 +196,22 @@ export default function AdminOrderDetailPage() {
               <span className="font-display text-3xl font-bold">{formatPrice(order.total, order.currency)}</span>
             </p>
           </section>
+
+          <ManualDeliveryPanel
+            orderId={order.id}
+            orderItems={order.items}
+            paymentStatus={order.paymentStatus}
+            fulfillmentStatus={order.fulfillmentStatus}
+            deliveries={manualDeliveries}
+            inventoryDeliveredCounts={inventoryDeliveredCounts}
+            inventoryReservedCounts={inventoryReservedCounts}
+            busy={actionBusy}
+            onIssue={issueManualDeliveries}
+            onUpdate={updateManualDelivery}
+            onResend={resendManualDelivery}
+          />
+
+          <AdminOrderSupportChat orderId={order.id} manualDeliveries={manualDeliveries} />
 
           <section aria-labelledby="customer" className="border border-line bg-coal p-4">
             <h2 id="customer" className="mb-3 text-2xl">Покупатель</h2>
@@ -273,18 +329,6 @@ export default function AdminOrderDetailPage() {
               </div>
             )}
           </section>
-
-          <ManualDeliveryPanel
-            orderId={order.id}
-            orderItems={order.items}
-            paymentStatus={order.paymentStatus}
-            fulfillmentStatus={order.fulfillmentStatus}
-            deliveries={manualDeliveries}
-            inventoryDeliveredCounts={inventoryDeliveredCounts}
-            busy={actionBusy}
-            onIssue={issueManualDeliveries}
-            onResend={resendManualDelivery}
-          />
 
           <section aria-labelledby="comments" className="border border-line bg-coal p-4">
             <h2 id="comments" className="mb-3 text-2xl">Добавить комментарий</h2>

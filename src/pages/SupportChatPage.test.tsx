@@ -141,6 +141,9 @@ describe('чат поддержки покупателя', () => {
       additionalData: '',
       instructions: 'Активируйте на сайте продавца.',
       createdAt: '2026-10-31T12:00:00.000Z',
+      updatedAt: '2026-11-01T10:00:00.000Z',
+      revision: 2,
+      history: [{ revision: 2, changedFields: ['activation_code'], changedAt: '2026-11-01T10:00:00.000Z', changedBy: 'admin-1' }],
     }
     await localSupportRepository.registerOrder(order)
     await localSupportRepository.sendMessage(
@@ -163,5 +166,42 @@ describe('чат поддержки покупателя', () => {
     expect(screen.getByText('XXXX-XXXX-XXXX-XXXX')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Скопировать код' }))
     expect(writeText).toHaveBeenCalledWith('XXXX-XXXX-XXXX-XXXX')
+  })
+
+  it('показывает только актуальную версию выдачи и уведомляет об обновлении', async () => {
+    const delivery = {
+      id: 'delivery-current',
+      orderItemId: 'item-1',
+      title: 'Gift Card',
+      activationCode: 'NEW-CURRENT-KEY',
+      login: 'current@example.com',
+      password: 'CURRENT-PASSWORD',
+      additionalData: '',
+      instructions: '',
+      createdAt: '2026-10-31T12:00:00.000Z',
+      updatedAt: '2026-11-01T10:00:00.000Z',
+      revision: 2,
+      history: [{ revision: 2, changedFields: ['activation_code'], changedAt: '2026-11-01T10:00:00.000Z', changedBy: 'admin-1' }],
+    }
+    await localSupportRepository.registerOrder(order)
+    await localSupportRepository.sendMessage(
+      order.orderId,
+      'support',
+      'BEZB_MANUAL_DELIVERY:{"delivery_ids":["delivery-current"]}',
+    )
+    await localSupportRepository.sendMessage(
+      order.orderId,
+      'support',
+      'BEZB_MANUAL_DELIVERY:{"delivery_ids":["delivery-current"],"event":"updated","revision":2}',
+    )
+    vi.spyOn(localSupportRepository, 'listCustomerManualDeliveries').mockResolvedValue({
+      ok: true,
+      value: [delivery],
+    })
+    renderChat()
+
+    expect(await screen.findByText('NEW-CURRENT-KEY')).toBeTruthy()
+    expect(screen.getAllByRole('article', { name: 'Выданный товар: Gift Card' })).toHaveLength(1)
+    expect(screen.getByText(/Данные выдачи обновлены/)).toBeTruthy()
   })
 })

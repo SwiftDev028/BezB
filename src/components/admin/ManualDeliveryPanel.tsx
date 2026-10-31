@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import type { ManualDelivery, ManualDeliveryInput, OrderItem, PaymentStatus, FulfillmentStatus } from '../../types'
+import type { FulfillmentStatus, ManualDelivery, ManualDeliveryInput, OrderItem, PaymentStatus } from '../../types'
 import { formatDateTime } from '../../utils/formatDate'
 import { btnPrimary, btnSecondary, inputClass } from '../common/ui'
 
@@ -10,10 +10,25 @@ type Props = {
   fulfillmentStatus: FulfillmentStatus
   deliveries: ManualDelivery[]
   inventoryDeliveredCounts: Record<string, number>
+  inventoryReservedCounts: Record<string, number>
   busy: boolean
   onIssue: (requestKey: string, deliveries: ManualDeliveryInput[]) => Promise<boolean>
+  onUpdate: (deliveryId: string, revision: number, delivery: ManualDeliveryInput) => Promise<boolean>
   onResend: (deliveryId: string) => Promise<void>
 }
+
+type Slot =
+  | { kind: 'manual'; key: string; item: OrderItem; number: number; delivery: ManualDelivery }
+  | { kind: 'inventory-delivered' | 'inventory-reserved' | 'pending'; key: string; item: OrderItem; number: number }
+
+const fields = [
+  ['title', 'Название товара'],
+  ['activationCode', 'Ключ / код активации'],
+  ['login', 'Логин'],
+  ['password', 'Пароль'],
+  ['additionalData', 'Дополнительные данные'],
+  ['instructions', 'Инструкция по активации'],
+] as const
 
 function blankDelivery(item: OrderItem): ManualDeliveryInput {
   return {
@@ -27,77 +42,195 @@ function blankDelivery(item: OrderItem): ManualDeliveryInput {
   }
 }
 
-function CopyField({ label, value }: {
+function deliveryInput(delivery: ManualDelivery): ManualDeliveryInput {
+  return {
+    orderItemId: delivery.orderItemId,
+    title: delivery.title,
+    activationCode: delivery.activationCode,
+    login: delivery.login,
+    password: delivery.password,
+    additionalData: delivery.additionalData,
+    instructions: delivery.instructions,
+  }
+}
+
+function isReady(entry: ManualDeliveryInput): boolean {
+  return Boolean(entry.orderItemId && entry.title.trim()
+    && (entry.activationCode.trim() || entry.login.trim() || entry.password.trim() || entry.additionalData.trim()))
+}
+
+function DeliveryFields({
+  entry,
+  label,
+  copyable = false,
+  onChange,
+}: {
+  entry: ManualDeliveryInput
   label: string
-  value: string
+  copyable?: boolean
+  onChange: (field: keyof ManualDeliveryInput, value: string) => void
 }) {
-  const [copyStatus, setCopyStatus] = useState<'copied' | 'error' | null>(null)
-  if (!value) return null
+  const [copied, setCopied] = useState('')
+  const [copyError, setCopyError] = useState('')
   return (
-    <div className="flex flex-wrap items-start gap-2">
-      <span className="min-w-20 text-silver">{label}:</span>
-      <code className="min-w-0 flex-1 whitespace-pre-wrap break-all">{value}</code>
-      <button
-        type="button"
-        className="text-xs underline"
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(value)
-            setCopyStatus('copied')
-          } catch {
-            setCopyStatus('error')
-          }
-        }}
-      >
-        Копировать {label.toLowerCase()}
-      </button>
-      {copyStatus && (
-        <span role={copyStatus === 'error' ? 'alert' : 'status'} className="text-xs text-silver">
-          {copyStatus === 'copied' ? 'Скопировано' : 'Не удалось скопировать значение.'}
-        </span>
-      )}
+    <div className="space-y-3">
+      {fields.map(([field, title]) => (
+        <label key={field} className="block text-xs font-semibold text-silver">
+          {title}
+          <textarea
+            aria-label={`${title} · ${label}`}
+            className={`${inputClass} mt-1 py-2`}
+            rows={field === 'instructions' || field === 'additionalData' ? 3 : 1}
+            value={entry[field]}
+            required={field === 'title'}
+            onChange={(event) => onChange(field, event.target.value)}
+          />
+          {copyable && entry[field] && (
+            <button
+              type="button"
+              className="mt-1 text-xs underline"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(entry[field])
+                  setCopied(field)
+                  setCopyError('')
+                } catch {
+                  setCopyError('Не удалось скопировать значение.')
+                }
+              }}
+            >
+              Копировать {title.toLowerCase()}
+            </button>
+          )}
+          {copied === field && <span role="status" className="ml-2 text-xs">Скопировано</span>}
+        </label>
+      ))}
+      {copyError && <p role="alert" className="text-xs text-red-hot">{copyError}</p>}
     </div>
   )
 }
 
-export function ManualDeliveryPanel({
+function DeliveryCard({
   orderId,
-  orderItems,
+  slot,
   paymentStatus,
   fulfillmentStatus,
-  deliveries,
-  inventoryDeliveredCounts,
   busy,
   onIssue,
+  onUpdate,
   onResend,
-}: Props) {
-  const [entries, setEntries] = useState<ManualDeliveryInput[]>(() =>
-    orderItems.length > 0 ? [blankDelivery(orderItems[0])] : [],
+}: {
+  orderId: string
+  slot: Slot
+  paymentStatus: PaymentStatus
+  fulfillmentStatus: FulfillmentStatus
+  busy: boolean
+  onIssue: Props['onIssue']
+  onUpdate: Props['onUpdate']
+  onResend: Props['onResend']
+}) {
+  const existing = slot.kind === 'manual' ? slot.delivery : null
+  const [entry, setEntry] = useState<ManualDeliveryInput>(() =>
+    existing ? deliveryInput(existing) : blankDelivery(slot.item),
   )
-  const [requestError, setRequestError] = useState('')
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
   const requestKey = useRef<string | null>(null)
-  const issuing = useRef(false)
-  const disabled = paymentStatus !== 'paid' || fulfillmentStatus === 'delivered' || fulfillmentStatus === 'cancelled'
+  const working = busy || saving
+  const label = `${slot.item.title} · единица ${slot.number}`
+  const mayIssue = paymentStatus === 'paid' && fulfillmentStatus !== 'delivered' && fulfillmentStatus !== 'cancelled'
 
   useEffect(() => {
-    requestKey.current = null
-    setRequestError('')
-    setEntries(orderItems.length > 0 ? [blankDelivery(orderItems[0])] : [])
-  }, [orderId, orderItems])
+    if (existing) setEntry(deliveryInput(existing))
+  }, [existing?.revision])
 
-  const submit = async (event: FormEvent) => {
+  const change = (field: keyof ManualDeliveryInput, value: string) => {
+    setEntry((current) => ({ ...current, [field]: value }))
+    setError('')
+  }
+
+  if (slot.kind === 'inventory-delivered' || slot.kind === 'inventory-reserved') {
+    return (
+      <article className="space-y-2 border border-line bg-ink p-4">
+        <h3 className="font-semibold">{label}</h3>
+        <p role="status" className="text-sm text-silver">
+          {slot.kind === 'inventory-delivered' ? 'Выдано со склада' : 'Назначено со склада · ожидает выдачи'}
+        </p>
+        <p className="text-xs text-silver">Управление складским кодом доступно в блоке «Коды со склада».</p>
+      </article>
+    )
+  }
+
+  if (existing) {
+    const save = async (event: FormEvent) => {
+      event.preventDefault()
+      if (working || !isReady(entry)) return
+      setSaving(true)
+      setError('')
+      try {
+        if (!await onUpdate(existing.id, existing.revision, { ...entry })) {
+          setError('Не удалось сохранить изменения. Проверьте сообщение выше и повторите попытку.')
+        }
+      } catch (saveError) {
+        setError(saveError instanceof Error ? saveError.message : 'Не удалось сохранить изменения.')
+      } finally {
+        setSaving(false)
+      }
+    }
+
+    return (
+      <article className="space-y-4 border border-line bg-ink p-4" aria-label={`Выдача: ${label}`}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h3 className="font-semibold">{label}</h3>
+            <p className="mt-1 text-xs text-silver">Статус: выдан · версия {existing.revision}</p>
+            <p className="text-xs text-silver">Изменено {formatDateTime(existing.updatedAt)}</p>
+          </div>
+          <time className="text-xs text-silver">Выдано {formatDateTime(existing.createdAt)}</time>
+        </div>
+        <form onSubmit={(event) => void save(event)} className="space-y-3">
+          <DeliveryFields entry={entry} label={label} copyable onChange={change} />
+          <div className="flex flex-wrap gap-2">
+            <button type="submit" className={btnPrimary} disabled={working || !isReady(entry)}>
+              {saving ? 'Сохраняем…' : 'Сохранить изменения'}
+            </button>
+            <button
+              type="button"
+              className={btnSecondary}
+              disabled={working || fulfillmentStatus === 'cancelled'}
+              onClick={() => {
+                if (window.confirm('Повторно отправить актуальные данные товара в чат?')) {
+                  void onResend(existing.id)
+                }
+              }}
+            >
+              Повторно отправить
+            </button>
+          </div>
+        </form>
+        {existing.history.length > 0 && (
+          <details className="border-t border-line pt-3">
+            <summary className="cursor-pointer text-xs text-silver">История изменений ({existing.history.length})</summary>
+            <ul className="mt-2 space-y-2 text-xs text-silver">
+              {existing.history.map((changeRecord) => (
+                <li key={changeRecord.revision}>
+                  Версия {changeRecord.revision} · {formatDateTime(changeRecord.changedAt)} · изменены поля: {changeRecord.changedFields.join(', ')}
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        {error && <p role="alert" className="text-sm text-red-hot">{error}</p>}
+      </article>
+    )
+  }
+
+  const issue = async (event: FormEvent) => {
     event.preventDefault()
-    if (busy || issuing.current || disabled || entries.length === 0) return
-    const ready = entries.every((entry) =>
-      entry.orderItemId && entry.title.trim()
-      && (entry.activationCode.trim() || entry.login.trim() || entry.password.trim() || entry.additionalData.trim()),
-    )
-    if (!ready) return
-    const confirmed = window.confirm(
-      `Выдать ${entries.length} поз. покупателю? Данные будут сохранены и отправлены в чат заказа ${orderId}.`,
-    )
-    if (!confirmed) return
-    const storageKey = `bezb:manual-delivery-request:${orderId}`
+    if (working || !mayIssue || !isReady(entry)) return
+    if (!window.confirm(`Выдать «${entry.title}» покупателю и отправить данные в чат заказа ${orderId}?`)) return
+
+    const storageKey = `bezb:manual-delivery-request:${orderId}:${slot.item.id}:${slot.number}`
     try {
       requestKey.current ??= sessionStorage.getItem(storageKey)
       if (!requestKey.current || !/^[0-9a-f-]{36}$/i.test(requestKey.current)) {
@@ -105,154 +238,104 @@ export function ManualDeliveryPanel({
       }
       sessionStorage.setItem(storageKey, requestKey.current)
     } catch {
-      setRequestError('Не удалось безопасно сохранить ключ повтора. Разрешите хранилище сессии и повторите попытку.')
+      setError('Не удалось сохранить ключ повтора. Разрешите хранилище сессии и повторите попытку.')
       return
     }
-    issuing.current = true
+
+    setSaving(true)
+    setError('')
     try {
-      if (await onIssue(requestKey.current, entries.map((entry) => ({ ...entry })))) {
+      if (await onIssue(requestKey.current, [{ ...entry }])) {
         try {
           sessionStorage.removeItem(storageKey)
         } catch {
-          setRequestError('Выдача состоялась, но ключ повтора остался в хранилище текущей сессии.')
+          setError('Выдача состоялась, но ключ повтора остался в хранилище текущей сессии.')
         }
         requestKey.current = null
-        setEntries(orderItems.length > 0 ? [blankDelivery(orderItems[0])] : [])
       }
+    } catch (issueError) {
+      setError(issueError instanceof Error ? issueError.message : 'Не удалось выдать товар.')
     } finally {
-      issuing.current = false
+      setSaving(false)
     }
   }
 
   return (
+    <article className="space-y-4 border border-line bg-ink p-4" aria-label={`Ожидает выдачи: ${label}`}>
+      <div>
+        <h3 className="font-semibold">{label}</h3>
+        <p className="mt-1 text-xs text-silver">Статус: ожидает выдачи</p>
+      </div>
+      {paymentStatus !== 'paid' && <p className="text-xs text-silver">Для выдачи нужно подтвердить оплату заказа.</p>}
+      <form onSubmit={(event) => void issue(event)} className="space-y-3">
+        <DeliveryFields entry={entry} label={label} onChange={change} />
+        <button type="submit" className={btnPrimary} disabled={!mayIssue || working || !isReady(entry)}>
+          {saving ? 'Сохраняем и отправляем…' : 'Выдать покупателю'}
+        </button>
+      </form>
+      {error && <p role="alert" className="text-sm text-red-hot">{error}</p>}
+    </article>
+  )
+}
+
+function deliverySlots({
+  orderId,
+  orderItems,
+  deliveries,
+  inventoryDeliveredCounts,
+  inventoryReservedCounts,
+}: Pick<Props, 'orderId' | 'orderItems' | 'deliveries' | 'inventoryDeliveredCounts' | 'inventoryReservedCounts'>): Slot[] {
+  return orderItems.flatMap((item) => {
+    const itemId = item.id ?? ''
+    const manual = deliveries
+      .filter((delivery) => delivery.orderItemId === itemId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    const deliveredCount = inventoryDeliveredCounts[itemId] ?? 0
+    const reservedCount = inventoryReservedCounts[itemId] ?? 0
+    return Array.from({ length: item.quantity }, (_, index): Slot => {
+      const number = index + 1
+      const key = `${orderId}:${itemId}:${number}`
+      if (index < deliveredCount) return { kind: 'inventory-delivered', key, item, number }
+      const manualIndex = index - deliveredCount
+      if (manualIndex < manual.length) {
+        return { kind: 'manual', key, item, number, delivery: manual[manualIndex] }
+      }
+      if (manualIndex < manual.length + reservedCount) return { kind: 'inventory-reserved', key, item, number }
+      return { kind: 'pending', key, item, number }
+    })
+  })
+}
+
+export function ManualDeliveryPanel(props: Props) {
+  const slots = deliverySlots(props)
+  const deliveredCount = slots.filter((slot) => slot.kind === 'manual' || slot.kind === 'inventory-delivered').length
+  return (
     <section aria-labelledby="manual-delivery" className="space-y-4 border border-line bg-coal p-4">
       <div>
-        <h2 id="manual-delivery" className="text-2xl">Ручная выдача покупателю</h2>
-        <p className="mt-1 text-sm text-silver">Данные хранятся в закрытой схеме и попадут покупателю через защищённый чат.</p>
+        <h2 id="manual-delivery" className="text-2xl">Выдача товаров по позициям заказа</h2>
+        <p className="mt-1 text-sm text-silver">Каждая единица выдаётся и редактируется отдельно. Изменения версии появятся у покупателя в том же чате.</p>
       </div>
-
-      {paymentStatus !== 'paid' && <p className="text-sm text-silver">Перед выдачей подтвердите оплату.</p>}
-      {fulfillmentStatus === 'cancelled' && <p className="text-sm text-silver">Нельзя выдавать товар по отменённому заказу.</p>}
-
-      {deliveries.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="font-semibold">Уже выдано</h3>
-          {deliveries.map((delivery) => (
-            <article key={delivery.id} className="space-y-2 border-t border-line pt-3 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <strong>{delivery.title}</strong>
-                <time className="text-xs text-silver">{formatDateTime(delivery.createdAt)}</time>
-              </div>
-              <CopyField label="Код" value={delivery.activationCode} />
-              <CopyField label="Логин" value={delivery.login} />
-              <CopyField label="Пароль" value={delivery.password} />
-              <CopyField label="Дополнительно" value={delivery.additionalData} />
-              <CopyField label="Инструкция" value={delivery.instructions} />
-              <button
-                type="button"
-                className="text-sm underline"
-                disabled={busy || fulfillmentStatus === 'cancelled'}
-                onClick={() => {
-                  if (window.confirm('Повторно отправить этот товар в чат? Новая выдача создана не будет.')) {
-                    void onResend(delivery.id)
-                  }
-                }}
-              >
-                Повторно отправить в чат
-              </button>
-            </article>
-          ))}
-        </div>
-      )}
-      <div className="space-y-1">
-        {orderItems.map((item) => {
-          const issued = (inventoryDeliveredCounts[item.id ?? ''] ?? 0)
-            + deliveries.filter((delivery) => delivery.orderItemId === item.id).length
-          return (
-            <p key={`progress-${item.id}`} className="text-xs text-silver">
-              {item.title}: {issued}/{item.quantity} шт. выдано
-            </p>
-          )
-        })}
-      </div>
-
-      {fulfillmentStatus !== 'delivered' && fulfillmentStatus !== 'cancelled' && (
-        <form onSubmit={(event) => void submit(event)} className="space-y-4 border-t border-line pt-4">
-          {entries.map((entry, index) => (
-            <fieldset key={`${orderId}-${index}`} disabled={disabled || busy} className="space-y-3 border border-line p-3">
-              <legend className="px-1 text-sm font-semibold">Товар {index + 1}</legend>
-              <label className="block text-xs font-semibold text-silver">
-                Позиция заказа
-                <select
-                  aria-label={`Позиция заказа ${index + 1}`}
-                  className={`${inputClass} mt-1`}
-                  value={entry.orderItemId}
-                  onChange={(event) => {
-                    const selectedItem = orderItems.find((item) => item.id === event.target.value)
-                    setEntries((current) => current.map((item, currentIndex) => currentIndex === index
-                      ? { ...item, orderItemId: event.target.value, title: selectedItem?.title ?? item.title }
-                      : item))
-                  }}
-                  required
-                >
-                  {orderItems.map((item) => (
-                    <option key={item.id} value={item.id}>{item.title} · {item.quantity} шт.</option>
-                  ))}
-                </select>
-              </label>
-              {([
-                ['title', 'Название товара', true],
-                ['activationCode', 'Ключ / код активации', false],
-                ['login', 'Логин', false],
-                ['password', 'Пароль', false],
-                ['additionalData', 'Дополнительные данные', false],
-                ['instructions', 'Инструкция по активации', false],
-              ] as const).map(([field, label, required]) => (
-                <label key={field} className="block text-xs font-semibold text-silver">
-                  {label}
-                  <textarea
-                    aria-label={`${label} ${index + 1}`}
-                    className={`${inputClass} mt-1 py-2`}
-                    rows={field === 'instructions' || field === 'additionalData' ? 3 : 1}
-                    value={entry[field]}
-                    required={required}
-                    onChange={(event) => setEntries((current) => current.map((item, currentIndex) =>
-                      currentIndex === index ? { ...item, [field]: event.target.value } : item,
-                    ))}
-                  />
-                </label>
-              ))}
-              {entries.length > 1 && (
-                <button
-                  type="button"
-                  className="text-sm text-silver underline"
-                  onClick={() => setEntries((current) => current.filter((_, currentIndex) => currentIndex !== index))}
-                >
-                  Удалить позицию
-                </button>
-              )}
-            </fieldset>
-          ))}
-          <button
-            type="button"
-            className={btnSecondary}
-            disabled={disabled || busy || entries.length >= 50 || orderItems.length === 0}
-            onClick={() => setEntries((current) => [...current, blankDelivery(orderItems[0])])}
-          >
-            Добавить товар или ключ
-          </button>
-          <button
-            type="submit"
-            className={btnPrimary}
-            disabled={disabled || busy || entries.length === 0 || !entries.every((entry) =>
-              entry.orderItemId && entry.title.trim()
-              && (entry.activationCode.trim() || entry.login.trim() || entry.password.trim() || entry.additionalData.trim()),
-            )}
-          >
-            {busy ? 'Сохраняем и отправляем…' : 'Выдать покупателю'}
-          </button>
-          {requestError && <p role="alert" className="text-sm text-red-hot">{requestError}</p>}
-        </form>
+      {props.orderItems.length === 0 ? (
+        <p className="text-sm text-silver">В заказе нет позиций для выдачи.</p>
+      ) : (
+        <>
+          <p className="text-xs text-silver">Выдано {deliveredCount} из {slots.length} единиц.</p>
+          <div className="space-y-3">
+            {slots.map((slot) => (
+              <DeliveryCard
+                key={slot.key}
+                orderId={props.orderId}
+                slot={slot}
+                paymentStatus={props.paymentStatus}
+                fulfillmentStatus={props.fulfillmentStatus}
+                busy={props.busy}
+                onIssue={props.onIssue}
+                onUpdate={props.onUpdate}
+                onResend={props.onResend}
+              />
+            ))}
+          </div>
+        </>
       )}
     </section>
   )

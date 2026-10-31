@@ -241,6 +241,10 @@ export const localSupportRepository: SupportRepository = {
     return { ok: false, error: 'Без backend нельзя безопасно сохранить выдачу.' }
   },
 
+  async updateManualDelivery() {
+    return { ok: false, error: 'Без backend нельзя безопасно изменить выдачу.' }
+  },
+
   async resendManualDelivery() {
     return { ok: false, error: 'Без backend нельзя безопасно повторно отправить выдачу.' }
   },

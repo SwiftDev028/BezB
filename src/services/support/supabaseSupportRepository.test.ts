@@ -140,6 +140,74 @@ describe('Supabase support repository', () => {
     })
   })
 
+  it('updates an existing manual delivery through the admin-only RPC with its expected revision', async () => {
+    rpc.mockResolvedValue({
+      data: {
+        delivery: {
+          id: 'delivery-1',
+          order_item_id: 'item-1',
+          title: 'Updated Gift Card',
+          activation_code: 'NEW-KEY',
+          login: 'buyer@example.com',
+          password: 'new-password',
+          additional_data: '',
+          instructions: 'New instructions',
+          created_at: '2026-10-31T12:00:00.000Z',
+          updated_at: '2026-11-01T10:00:00.000Z',
+          revision: 2,
+          history: [{
+            revision: 2,
+            changed_fields: ['title', 'activation_code', 'login', 'password', 'instructions'],
+            changed_at: '2026-11-01T10:00:00.000Z',
+            changed_by: 'admin-1',
+          }],
+        },
+        message_id: 'update-message',
+      },
+      error: null,
+    })
+    const result = await supabaseSupportRepository.updateManualDelivery('order-1', 'delivery-1', 1, {
+      orderItemId: 'item-1',
+      title: 'Updated Gift Card',
+      activationCode: 'NEW-KEY',
+      login: 'buyer@example.com',
+      password: 'new-password',
+      additionalData: '',
+      instructions: 'New instructions',
+    })
+
+    expect(rpc).toHaveBeenCalledWith('support_admin_update_manual_delivery', {
+      p_order_id: 'order-1',
+      p_delivery_id: 'delivery-1',
+      p_expected_revision: 1,
+      p_delivery: {
+        title: 'Updated Gift Card',
+        activation_code: 'NEW-KEY',
+        login: 'buyer@example.com',
+        password: 'new-password',
+        additional_data: '',
+        instructions: 'New instructions',
+      },
+    })
+    expect(result.ok && result.value.delivery.activationCode).toBe('NEW-KEY')
+    expect(result.ok && result.value.delivery.history[0].changedFields).toContain('password')
+  })
+
+  it('surfaces stale edit conflicts without losing submitted data in the caller', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'Delivery changed since it was loaded' } })
+    const result = await supabaseSupportRepository.updateManualDelivery('order-1', 'delivery-1', 1, {
+      orderItemId: 'item-1',
+      title: 'Gift Card',
+      activationCode: 'KEY',
+      login: '',
+      password: '',
+      additionalData: '',
+      instructions: '',
+    })
+
+    expect(result).toEqual({ ok: false, error: 'Delivery changed since it was loaded' })
+  })
+
   it('loads delivery secrets only through the customer access-check RPC', async () => {
     rpc.mockResolvedValue({
       data: [{
