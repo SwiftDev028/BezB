@@ -1,4 +1,4 @@
-import type { Result, SupportMessage, SupportThread } from '../../types'
+import type { ManualDelivery, ManualDeliveryInput, ManualDeliveryIssueResult, Result, SupportMessage, SupportThread } from '../../types'
 import type { SupportRepository } from './SupportRepository'
 import { requireSupabase } from '../supabase'
 
@@ -96,6 +96,36 @@ function mappedMessage(value: unknown): Result<SupportMessage> {
   return message
     ? { ok: true, value: message }
     : { ok: false, error: 'Сервер вернул некорректные данные сообщения.' }
+}
+
+function mapManualDelivery(value: unknown): ManualDelivery | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Row
+  if (
+    typeof row.id !== 'string' ||
+    typeof row.order_item_id !== 'string' ||
+    typeof row.title !== 'string' ||
+    typeof row.created_at !== 'string'
+  ) return null
+  return {
+    id: row.id,
+    orderItemId: row.order_item_id,
+    title: row.title,
+    activationCode: typeof row.activation_code === 'string' ? row.activation_code : '',
+    login: typeof row.login === 'string' ? row.login : '',
+    password: typeof row.password === 'string' ? row.password : '',
+    additionalData: typeof row.additional_data === 'string' ? row.additional_data : '',
+    instructions: typeof row.instructions === 'string' ? row.instructions : '',
+    createdAt: row.created_at,
+  }
+}
+
+function mappedManualDeliveries(value: unknown): Result<ManualDelivery[]> {
+  if (!Array.isArray(value)) return { ok: false, error: 'Сервер вернул некорректный список выдач.' }
+  const deliveries = value.map(mapManualDelivery)
+  return deliveries.some((delivery) => delivery === null)
+    ? { ok: false, error: 'Сервер вернул некорректные данные выдачи.' }
+    : { ok: true, value: deliveries as ManualDelivery[] }
 }
 
 export const supabaseSupportRepository: SupportRepository = {
@@ -227,5 +257,65 @@ export const supabaseSupportRepository: SupportRepository = {
     const { data, error } = await requireSupabase().rpc('support_admin_send_delivered_codes', { p_order_id: orderId })
     const err = failure<SupportMessage>(error, 'Не удалось отправить цифровую выдачу.')
     return err ?? mappedMessage(data)
+  },
+
+  async listAdminManualDeliveries(orderId) {
+    const { data, error } = await requireSupabase().rpc('support_admin_list_manual_deliveries', { p_order_id: orderId })
+    const err = failure<ManualDelivery[]>(error, 'Не удалось загрузить ручные выдачи.')
+    return err ?? mappedManualDeliveries(data)
+  },
+
+  async issueManualDeliveries(orderId, requestKey, deliveries: ManualDeliveryInput[]) {
+    const { data, error } = await requireSupabase().rpc('support_admin_issue_manual_deliveries', {
+      p_order_id: orderId,
+      p_request_key: requestKey,
+      p_deliveries: deliveries.map((delivery) => ({
+        order_item_id: delivery.orderItemId,
+        title: delivery.title,
+        activation_code: delivery.activationCode,
+        login: delivery.login,
+        password: delivery.password,
+        additional_data: delivery.additionalData,
+        instructions: delivery.instructions,
+      })),
+    })
+    const err = failure<ManualDeliveryIssueResult>(error, 'Не удалось выдать товар.')
+    if (err) return err
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return { ok: false, error: 'Сервер вернул некорректный результат выдачи.' }
+    }
+    const row = data as Row
+    if (
+      !Array.isArray(row.delivery_ids) ||
+      !row.delivery_ids.every((id) => typeof id === 'string') ||
+      typeof row.message_id !== 'string' ||
+      (row.fulfillment_status !== 'processing' && row.fulfillment_status !== 'delivered')
+    ) return { ok: false, error: 'Сервер вернул некорректный результат выдачи.' }
+    return {
+      ok: true,
+      value: {
+        deliveryIds: row.delivery_ids,
+        messageId: row.message_id,
+        fulfillmentStatus: row.fulfillment_status,
+      },
+    }
+  },
+
+  async resendManualDelivery(orderId, deliveryId) {
+    const { data, error } = await requireSupabase().rpc('support_admin_resend_manual_delivery', {
+      p_order_id: orderId,
+      p_delivery_id: deliveryId,
+    })
+    const err = failure<SupportMessage>(error, 'Не удалось повторно отправить выдачу в чат.')
+    return err ?? mappedMessage(data)
+  },
+
+  async listCustomerManualDeliveries(orderId, guestToken) {
+    const { data, error } = await requireSupabase().rpc('support_customer_list_manual_deliveries', {
+      p_order_id: orderId,
+      p_guest_token: guestToken ?? null,
+    })
+    const err = failure<ManualDelivery[]>(error, 'Не удалось загрузить данные выдачи.')
+    return err ?? mappedManualDeliveries(data)
   },
 }

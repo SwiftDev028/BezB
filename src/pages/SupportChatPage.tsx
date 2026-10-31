@@ -4,7 +4,7 @@ import { Copy } from 'lucide-react'
 import { SupportConversation } from '../components/support/SupportConversation'
 import { btnSecondary } from '../components/common/ui'
 import { supportRepository } from '../services/support'
-import type { SupportThread } from '../types'
+import type { ManualDelivery, SupportThread } from '../types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 function mergeThread(current: SupportThread, incoming: SupportThread): SupportThread {
@@ -31,6 +31,7 @@ export default function SupportChatPage() {
   const { hash } = useLocation()
   const guestToken = new URLSearchParams(hash.slice(1)).get('token') ?? undefined
   const [thread, setThread] = useState<SupportThread | null>(null)
+  const [manualDeliveries, setManualDeliveries] = useState<ManualDelivery[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [copyMessage, setCopyMessage] = useState('')
@@ -47,14 +48,22 @@ export default function SupportChatPage() {
     setLoading(true)
     setError('')
     setThread(null)
-    void supportRepository.getCustomerThread(orderId, guestToken).then(async (result) => {
+    setManualDeliveries([])
+    void Promise.all([
+      supportRepository.getCustomerThread(orderId, guestToken),
+      supportRepository.listCustomerManualDeliveries(orderId, guestToken),
+    ]).then(async ([result, deliveryResult]) => {
       if (!active) return
-      if (!result.ok) setError(result.error)
-      else {
-        updateThread(result.value)
+      const errors: string[] = []
+      if (!result.ok) errors.push(result.error)
+      else updateThread(result.value)
+      if (!deliveryResult.ok) errors.push(deliveryResult.error)
+      else setManualDeliveries(deliveryResult.value)
+      if (result.ok) {
         const marked = await supportRepository.markCustomerRead(orderId, guestToken)
-        if (!marked.ok && active) setError(marked.error)
+        if (!marked.ok) errors.push(marked.error)
       }
+      if (errors.length > 0) setError(errors.join(' '))
       setLoading(false)
     }).catch((loadError: unknown) => {
       if (!active) return
@@ -72,16 +81,21 @@ export default function SupportChatPage() {
       if (!active || requestInFlight) return
       requestInFlight = true
       try {
-        const result = await supportRepository.getCustomerThread(orderId, guestToken)
+        const [result, deliveryResult] = await Promise.all([
+          supportRepository.getCustomerThread(orderId, guestToken),
+          supportRepository.listCustomerManualDeliveries(orderId, guestToken),
+        ])
         if (!active) return
+        const errors: string[] = []
+        if (result.ok) updateThread(result.value)
+        else errors.push(result.error)
+        if (deliveryResult.ok) setManualDeliveries(deliveryResult.value)
+        else errors.push(deliveryResult.error)
         if (result.ok) {
-          updateThread(result.value)
-          setError('')
           const marked = await supportRepository.markCustomerRead(orderId, guestToken)
-          if (!marked.ok && active) setError(marked.error)
-        } else {
-          setError(result.error)
+          if (!marked.ok) errors.push(marked.error)
         }
+        if (active) setError(errors.join(' '))
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : 'Не удалось обновить переписку.')
       } finally {
@@ -114,7 +128,7 @@ export default function SupportChatPage() {
     <div className="container-x py-8 sm:py-12">
       <div className="mx-auto max-w-3xl space-y-5">
         <Link to="/support" className={`${btnSecondary} w-fit`}>Мои обращения</Link>
-        {!thread ? (
+        {!thread || thread.orderId !== orderId ? (
           <div className="space-y-4 border border-red bg-red/10 p-4">
             <h1 className="text-3xl">Чат недоступен</h1>
             <p role="alert" className="text-sm text-silver">{error || 'Обращение не найдено.'}</p>
@@ -139,7 +153,13 @@ export default function SupportChatPage() {
               </button>
               {copyMessage && <p role="status" className="self-center text-xs text-silver">{copyMessage}</p>}
             </div>
-            <SupportConversation thread={thread} author="customer" guestToken={guestToken} onChange={handleThreadChange} />
+            <SupportConversation
+              thread={thread}
+              author="customer"
+              guestToken={guestToken}
+              manualDeliveries={manualDeliveries}
+              onChange={handleThreadChange}
+            />
             <div className="flex flex-wrap gap-3">
               <Link to="/support" className={btnSecondary}>Мои обращения</Link>
             </div>

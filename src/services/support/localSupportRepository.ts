@@ -1,4 +1,5 @@
 import type {
+  ManualDeliveryInput,
   Result,
   SupportAuthor,
   SupportMessage,
@@ -230,5 +231,21 @@ export const localSupportRepository: SupportRepository = {
 
   async sendDeliveredCodes() {
     return { ok: false, error: 'Без backend нельзя безопасно отправить цифровые коды.' }
+  },
+
+  async listAdminManualDeliveries() {
+    return { ok: true, value: [] }
+  },
+
+  async issueManualDeliveries(_orderId: string, _requestKey: string, _deliveries: ManualDeliveryInput[]) {
+    return { ok: false, error: 'Без backend нельзя безопасно сохранить выдачу.' }
+  },
+
+  async resendManualDelivery() {
+    return { ok: false, error: 'Без backend нельзя безопасно повторно отправить выдачу.' }
+  },
+
+  async listCustomerManualDeliveries() {
+    return { ok: true, value: [] }
   },
 }

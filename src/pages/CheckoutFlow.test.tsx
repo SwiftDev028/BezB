@@ -106,8 +106,8 @@ beforeEach(() => {
     if (name === 'support_customer_get_thread') return {
       data: {
         id: 'support-thread-id',
-        order_id: 'checkout-flow-order',
-        order_number: 'BZB-FLOW-1',
+        order_id: String(args.p_order_id),
+        order_number: args.p_order_id === 'checkout-flow-buyer-order' ? 'BZB-FLOW-2' : 'BZB-FLOW-1',
         status: 'open',
         created_at: '2026-10-29T10:00:00.000Z',
         total_amount: 1200,
@@ -119,6 +119,7 @@ beforeEach(() => {
       error: null,
     }
     if (name === 'support_customer_mark_read') return { data: null, error: null }
+    if (name === 'support_customer_list_manual_deliveries') return { data: [], error: null }
     if (name === 'support_customer_send_message') {
       const message = {
         id: 'message-1',

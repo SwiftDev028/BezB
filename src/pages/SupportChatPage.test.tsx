@@ -31,6 +31,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
 
@@ -127,5 +128,40 @@ describe('чат поддержки покупателя', () => {
     expect(screen.getByRole('log')).toBeTruthy()
     expect((screen.getByLabelText('Ваше сообщение') as HTMLTextAreaElement).value).toBe('Черновик останется')
     expect(getCustomerThread).toHaveBeenCalledTimes(2)
+  })
+
+  it('показывает сохранённый ключ отдельным системным сообщением и позволяет скопировать его', async () => {
+    const delivery = {
+      id: 'manual-delivery-1',
+      orderItemId: 'item-1',
+      title: 'Apple Gift Card USA $10',
+      activationCode: 'XXXX-XXXX-XXXX-XXXX',
+      login: '',
+      password: '',
+      additionalData: '',
+      instructions: 'Активируйте на сайте продавца.',
+      createdAt: '2026-10-31T12:00:00.000Z',
+    }
+    await localSupportRepository.registerOrder(order)
+    await localSupportRepository.sendMessage(
+      order.orderId,
+      'support',
+      'BEZB_MANUAL_DELIVERY:{"delivery_ids":["manual-delivery-1"]}',
+    )
+    vi.spyOn(localSupportRepository, 'listCustomerManualDeliveries').mockResolvedValue({
+      ok: true,
+      value: [delivery],
+    })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } })
+    const firstView = renderChat()
+
+    expect(await screen.findByText('Apple Gift Card USA $10')).toBeTruthy()
+    firstView.unmount()
+    renderChat()
+    expect(await screen.findByText('Apple Gift Card USA $10')).toBeTruthy()
+    expect(screen.getByText('XXXX-XXXX-XXXX-XXXX')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Скопировать код' }))
+    expect(writeText).toHaveBeenCalledWith('XXXX-XXXX-XXXX-XXXX')
   })
 })

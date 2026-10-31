@@ -10,6 +10,9 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle'
 import { formatDateTime } from '../../utils/formatDate'
 import { formatPrice } from '../../utils/format'
 import { requireSupabase } from '../../services/supabase'
+import { supportRepository } from '../../services/support'
+import { ManualDeliveryPanel } from '../../components/admin/ManualDeliveryPanel'
+import type { ManualDelivery, ManualDeliveryInput } from '../../types'
 import { useCatalog } from '../../context/CatalogContext'
 import { subscriptionTerm } from '../../utils/catalog'
 import {
@@ -24,6 +27,7 @@ export default function AdminOrderDetailPage() {
   const { getProduct } = useCatalog()
   const [availableCodes,setAvailableCodes]=useState<Record<string,any>[]>([])
   const [assignedCodes,setAssignedCodes]=useState<Record<string,any>[]>([])
+  const [manualDeliveries,setManualDeliveries]=useState<ManualDelivery[]>([])
   const [audit,setAudit]=useState<Record<string,any>[]>([])
   const [selectedCodes,setSelectedCodes]=useState<Record<string,string>>({})
   const [actionError,setActionError]=useState('');const [actionMessage,setActionMessage]=useState('');const [actionBusy,setActionBusy]=useState(false);const [copiedCode,setCopiedCode]=useState('')
@@ -38,16 +42,19 @@ export default function AdminOrderDetailPage() {
 
   const loadFulfillment = useCallback(async () => {
     const db=requireSupabase()
-    const [available,assigned,events]=await Promise.all([
+    const [available,assigned,events,manual]=await Promise.all([
       db.from('digital_codes').select('id,product_id,region,status').eq('status','available').order('created_at'),
       db.from('digital_codes').select('id,product_id,region,status,secret_code,assigned_order_item_id,delivered_at').eq('assigned_order_id',id).in('status',['reserved','delivered']),
       db.from('order_audit_events').select('id,event_type,actor_id,details,created_at').eq('order_id',id).order('created_at'),
+      supportRepository.listAdminManualDeliveries(id),
     ])
     for(const result of [available,assigned,events])if(result.error)throw result.error
+    if(!manual.ok)throw new Error(manual.error)
     setAvailableCodes(available.data??[]);setAssignedCodes(assigned.data??[]);setAudit(events.data??[])
+    setManualDeliveries(manual.value)
   },[id])
   useEffect(()=>{void loadFulfillment().catch(e=>setActionError(e instanceof Error?e.message:'Не удалось загрузить выдачу.'))},[loadFulfillment])
-  const auditEvents=useMemo(()=>audit.map((e)=>({id:e.id,type:'comment' as const,at:e.created_at,actor:e.actor_id?`Администратор · ${String(e.actor_id).slice(0,8)}`:'Система',text:({payment_confirmed:'Оплата подтверждена вручную',processing_started:'Начата обработка',order_cancelled:'Заказ отменён',code_assigned:'Цифровой код назначен',digital_goods_delivered:'Коды выданы в личный кабинет',delivery_email_marked_sent:'Ручная отправка email отмечена',order_created:'Заказ создан'} as Record<string,string>)[e.event_type]??'Действие администратора'})),[audit])
+  const auditEvents=useMemo(()=>audit.map((e)=>({id:e.id,type:'comment' as const,at:e.created_at,actor:e.actor_id?`Администратор · ${String(e.actor_id).slice(0,8)}`:'Система',text:({payment_confirmed:'Оплата подтверждена вручную',processing_started:'Начата обработка',order_cancelled:'Заказ отменён',code_assigned:'Цифровой код назначен',digital_goods_delivered:'Цифровые товары выданы',manual_delivery_started:'Ручная выдача начата',delivery_email_marked_sent:'Ручная отправка email отмечена',order_created:'Заказ создан'} as Record<string,string>)[e.event_type]??'Действие администратора'})),[audit])
 
   // Поле выдачи подхватывает сохранённое значение при открытии заказа
   const savedDelivery = order?.delivery.note ?? ''
@@ -80,7 +87,32 @@ export default function AdminOrderDetailPage() {
   }
 
   const runAdminAction=async(name:string,args:Record<string,unknown>={})=>{setActionBusy(true);setActionError('');setActionMessage('');try{const {error}=await requireSupabase().rpc(name,args);if(error)throw error;await Promise.all([refresh(),loadFulfillment()]);setActionMessage('Изменение сохранено.')}catch(e){setActionError(e instanceof Error?e.message:'Не удалось выполнить действие.')}finally{setActionBusy(false)}}
+  const issueManualDeliveries=async(requestKey:string,deliveries:ManualDeliveryInput[])=>{
+    setActionBusy(true);setActionError('');setActionMessage('')
+    try{
+      const result=await supportRepository.issueManualDeliveries(order.id,requestKey,deliveries)
+      if(!result.ok){setActionError(result.error);return false}
+      setActionMessage(result.value.fulfillmentStatus==='delivered'?'Товар выдан, сообщение отправлено, заказ выполнен.':'Частичная выдача сохранена и отправлена в чат; заказ остаётся в обработке.')
+      try{await Promise.all([refresh(),loadFulfillment()])}catch(e){setActionError(e instanceof Error?`Выдача сохранена, но данные страницы не обновились: ${e.message}`:'Выдача сохранена, но данные страницы не обновились.')}
+      return true
+    }catch(e){setActionError(e instanceof Error?e.message:'Не удалось выдать товар.');return false}
+    finally{setActionBusy(false)}
+  }
+  const resendManualDelivery=async(deliveryId:string)=>{
+    setActionBusy(true);setActionError('');setActionMessage('')
+    try{
+      const result=await supportRepository.resendManualDelivery(order.id,deliveryId)
+      if(!result.ok)setActionError(result.error)
+      else setActionMessage('Выданный товар повторно отправлен в чат без создания новой выдачи.')
+    }catch(e){setActionError(e instanceof Error?e.message:'Не удалось повторно отправить выдачу.')}
+    finally{setActionBusy(false)}
+  }
+  const inventoryDeliveredCounts=Object.fromEntries(order.items.map(item=>[
+    item.id??'',
+    assignedCodes.filter(code=>code.assigned_order_item_id===item.id&&code.status==='delivered').length,
+  ]))
   const canDeliver=order ? order.items.every(item=>assignedCodes.filter(c=>c.assigned_order_item_id===item.id&&c.status==='reserved').length===item.quantity) : false
+  const hasManualDelivery=manualDeliveries.length>0
   const emailBody=order?`Здравствуйте, ${order.customer.name}!\n\nЗаказ ${order.number}:\n\n${order.items.map(item=>{const itemCodes=assignedCodes.filter(c=>c.assigned_order_item_id===item.id);const instructions=getProduct(item.productId,item.region??'')?.activationInstructions??'';return `${item.title}${item.region?` · ${item.region}`:''}${item.denomination?` · ${item.denomination} ${item.denominationCurrency??''}`:''}\nКод(ы):\n${itemCodes.map(c=>c.secret_code).join('\n')}${instructions?`\n\nИнструкция:\n${instructions}`:''}`}).join('\n\n')}\n\nКоды также доступны в личном кабинете BezB.`:''
 
   return (
@@ -179,12 +211,80 @@ export default function AdminOrderDetailPage() {
             {actionError&&<p role="alert" className="text-sm text-red-hot">{actionError}</p>}{actionMessage&&<p role="status" className="text-sm text-silver">{actionMessage}</p>}
           </section>
 
-          <section className="space-y-4 border border-line bg-coal p-4"><h2 className="text-2xl">Коды и ручная выдача</h2>{order.paymentStatus!=='paid'&&<p className="text-sm text-silver">Сначала подтвердите оплату. Коды нельзя назначить неоплаченному заказу.</p>}
-            {order.items.map((item,index)=>{const itemId=item.id??'';const candidates=availableCodes.filter(c=>c.product_id===item.productId&&String(c.region??'')===String(item.region??''));const count=assignedCodes.filter(c=>c.assigned_order_item_id===itemId&&c.status==='reserved').length;return <div key={itemId||index} className="border-t border-line pt-3"><p className="font-semibold">{item.title} · {item.region||'без региона'} · {count}/{item.quantity} кодов</p>{order.paymentStatus==='paid'&&order.fulfillmentStatus!=='delivered'&&count<item.quantity&&<div className="mt-2 flex gap-2"><select aria-label={`Код для ${item.title}`} value={selectedCodes[itemId]??''} onChange={e=>setSelectedCodes(s=>({...s,[itemId]:e.target.value}))} className={inputClass}><option value="">Доступные коды: {candidates.length}</option>{candidates.map(c=><option key={c.id} value={c.id}>{String(c.id).slice(0,8)} · {c.region||'общий'}</option>)}</select><button disabled={actionBusy||!selectedCodes[itemId]||!itemId} onClick={async()=>{await runAdminAction('admin_assign_code',{p_order_id:order.id,p_order_item_id:itemId,p_code_id:selectedCodes[itemId]});setSelectedCodes(s=>({...s,[itemId]:''}))}} className={btnSecondary}>Назначить</button></div>}</div>})}
-            {order.paymentStatus==='paid'&&order.fulfillmentStatus!=='delivered'&&<button disabled={actionBusy||!canDeliver} onClick={()=>void runAdminAction('admin_deliver_order',{p_order_id:order.id})} className={btnPrimary}>Подтвердить выдачу в личный кабинет</button>}
-            {assignedCodes.map(c=><div key={c.id} className="border-t border-line pt-3"><p className="text-sm text-silver">{c.product_id} · {c.region||'без региона'} · {c.status}</p><code className="mt-2 block select-all break-all rounded bg-ink p-3">{c.secret_code}</code><button className="mt-2 min-h-10 underline" onClick={async()=>{await navigator.clipboard.writeText(c.secret_code);setCopiedCode(c.id)}}>Скопировать код</button>{copiedCode===c.id&&<span role="status" className="ml-2 text-sm">Скопировано</span>}</div>)}
-            {order.fulfillmentStatus==='delivered'&&<div className="space-y-2 border-t border-line pt-3"><p className="text-sm">Коды выданы в личный кабинет. Письмо автоматически не отправляется.</p><button className="min-h-10 underline" onClick={async()=>{await navigator.clipboard.writeText(order.customer.email)}}>Скопировать email</button><a className="ml-3 underline" href={`mailto:${encodeURIComponent(order.customer.email)}?subject=${encodeURIComponent(`BezB — заказ ${order.number}`)}&body=${encodeURIComponent(emailBody)}`}>Открыть почту с шаблоном и кодами</a><button className="ml-3 min-h-10 underline" disabled={actionBusy} onClick={()=>void runAdminAction('admin_mark_delivery_email_sent',{p_order_id:order.id})}>Отметить email отправленным вручную</button>{order.deliveryEmailSentAt&&<p className="text-xs text-silver">Отправка отмечена {formatDateTime(order.deliveryEmailSentAt)}</p>}</div>}
+          <section className="space-y-4 border border-line bg-coal p-4">
+            <h2 className="text-2xl">Коды со склада</h2>
+            {order.paymentStatus !== 'paid' && <p className="text-sm text-silver">Сначала подтвердите оплату. Коды нельзя назначить неоплаченному заказу.</p>}
+            {hasManualDelivery && <p className="text-sm text-silver">Для заказа уже используется ручная выдача. Не смешивайте её с кодами со склада.</p>}
+            {order.items.map((item, index) => {
+              const itemId = item.id ?? ''
+              const candidates = availableCodes.filter((code) => code.product_id === item.productId && String(code.region ?? '') === String(item.region ?? ''))
+              const count = assignedCodes.filter((code) => code.assigned_order_item_id === itemId && code.status === 'reserved').length
+              return (
+                <div key={itemId || index} className="border-t border-line pt-3">
+                  <p className="font-semibold">{item.title} · {item.region || 'без региона'} · {count}/{item.quantity} кодов</p>
+                  {order.paymentStatus === 'paid' && order.fulfillmentStatus !== 'delivered' && !hasManualDelivery && count < item.quantity && (
+                    <div className="mt-2 flex gap-2">
+                      <select
+                        aria-label={`Код для ${item.title}`}
+                        value={selectedCodes[itemId] ?? ''}
+                        onChange={(event) => setSelectedCodes((current) => ({ ...current, [itemId]: event.target.value }))}
+                        className={inputClass}
+                      >
+                        <option value="">Доступные коды: {candidates.length}</option>
+                        {candidates.map((code) => <option key={code.id} value={code.id}>{String(code.id).slice(0, 8)} · {code.region || 'общий'}</option>)}
+                      </select>
+                      <button
+                        disabled={actionBusy || !selectedCodes[itemId] || !itemId}
+                        onClick={async () => {
+                          await runAdminAction('admin_assign_code', { p_order_id: order.id, p_order_item_id: itemId, p_code_id: selectedCodes[itemId] })
+                          setSelectedCodes((current) => ({ ...current, [itemId]: '' }))
+                        }}
+                        className={btnSecondary}
+                      >
+                        Назначить
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {order.paymentStatus === 'paid' && order.fulfillmentStatus !== 'delivered' && !hasManualDelivery && (
+              <button disabled={actionBusy || !canDeliver} onClick={() => void runAdminAction('admin_deliver_order', { p_order_id: order.id })} className={btnPrimary}>
+                Подтвердить выдачу в личный кабинет
+              </button>
+            )}
+            {assignedCodes.map((code) => (
+              <div key={code.id} className="border-t border-line pt-3">
+                <p className="text-sm text-silver">{code.product_id} · {code.region || 'без региона'} · {code.status}</p>
+                <code className="mt-2 block select-all break-all rounded bg-ink p-3">{code.secret_code}</code>
+                <button className="mt-2 min-h-10 underline" onClick={async () => { await navigator.clipboard.writeText(code.secret_code); setCopiedCode(code.id) }}>
+                  Скопировать код
+                </button>
+                {copiedCode === code.id && <span role="status" className="ml-2 text-sm">Скопировано</span>}
+              </div>
+            ))}
+            {order.fulfillmentStatus === 'delivered' && (
+              <div className="space-y-2 border-t border-line pt-3">
+                <p className="text-sm">Коды выданы в личный кабинет. Письмо автоматически не отправляется.</p>
+                <button className="min-h-10 underline" onClick={async () => { await navigator.clipboard.writeText(order.customer.email) }}>Скопировать email</button>
+                <a className="ml-3 underline" href={`mailto:${encodeURIComponent(order.customer.email)}?subject=${encodeURIComponent(`BezB — заказ ${order.number}`)}&body=${encodeURIComponent(emailBody)}`}>Открыть почту с шаблоном и кодами</a>
+                <button className="ml-3 min-h-10 underline" disabled={actionBusy} onClick={() => void runAdminAction('admin_mark_delivery_email_sent', { p_order_id: order.id })}>Отметить email отправленным вручную</button>
+                {order.deliveryEmailSentAt && <p className="text-xs text-silver">Отправка отмечена {formatDateTime(order.deliveryEmailSentAt)}</p>}
+              </div>
+            )}
           </section>
+
+          <ManualDeliveryPanel
+            orderId={order.id}
+            orderItems={order.items}
+            paymentStatus={order.paymentStatus}
+            fulfillmentStatus={order.fulfillmentStatus}
+            deliveries={manualDeliveries}
+            inventoryDeliveredCounts={inventoryDeliveredCounts}
+            busy={actionBusy}
+            onIssue={issueManualDeliveries}
+            onResend={resendManualDelivery}
+          />
 
           <section aria-labelledby="comments" className="border border-line bg-coal p-4">
             <h2 id="comments" className="mb-3 text-2xl">Добавить комментарий</h2>

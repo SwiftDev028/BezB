@@ -16,6 +16,34 @@ export interface SupportMessage {
   readByCustomer?: boolean
 }
 
+export interface ManualDelivery {
+  id: string
+  orderItemId: string
+  title: string
+  activationCode: string
+  login: string
+  password: string
+  additionalData: string
+  instructions: string
+  createdAt: string
+}
+
+export interface ManualDeliveryInput {
+  orderItemId: string
+  title: string
+  activationCode: string
+  login: string
+  password: string
+  additionalData: string
+  instructions: string
+}
+
+export interface ManualDeliveryIssueResult {
+  deliveryIds: string[]
+  messageId: string
+  fulfillmentStatus: 'processing' | 'delivered'
+}
+
 export interface SupportThread {
   id?: string
   orderId: string

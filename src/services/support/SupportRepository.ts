@@ -1,4 +1,4 @@
-import type { Result, SupportAuthor, SupportMessage, SupportOrderRegistration, SupportThread } from '../../types'
+import type { ManualDelivery, ManualDeliveryInput, ManualDeliveryIssueResult, Result, SupportAuthor, SupportMessage, SupportOrderRegistration, SupportThread } from '../../types'
 
 /** Repositories can later be replaced with a server-backed implementation. */
 export interface SupportRepository {
@@ -21,4 +21,8 @@ export interface SupportRepository {
   revokeGuestAccess(orderId: string): Promise<Result<void>>
   reissueGuestAccess(orderId: string): Promise<Result<string>>
   sendDeliveredCodes(orderId: string): Promise<Result<SupportMessage>>
+  listAdminManualDeliveries(orderId: string): Promise<Result<ManualDelivery[]>>
+  issueManualDeliveries(orderId: string, requestKey: string, deliveries: ManualDeliveryInput[]): Promise<Result<ManualDeliveryIssueResult>>
+  resendManualDelivery(orderId: string, deliveryId: string): Promise<Result<SupportMessage>>
+  listCustomerManualDeliveries(orderId: string, guestToken?: string): Promise<Result<ManualDelivery[]>>
 }

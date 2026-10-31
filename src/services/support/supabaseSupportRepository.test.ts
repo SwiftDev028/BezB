@@ -105,4 +105,90 @@ describe('Supabase support repository', () => {
 
     expect(rpc).toHaveBeenCalledWith('support_admin_send_delivered_codes', { p_order_id: 'order-1' })
   })
+
+  it('issues manual delivery through the admin RPC and maps only its transaction result', async () => {
+    rpc.mockResolvedValue({
+      data: { delivery_ids: ['delivery-1'], message_id: 'message-1', fulfillment_status: 'processing' },
+      error: null,
+    })
+    const result = await supabaseSupportRepository.issueManualDeliveries('order-1', 'request-key', [{
+      orderItemId: 'item-1',
+      title: 'Gift Card USA',
+      activationCode: 'KEY-SECRET',
+      login: '',
+      password: '',
+      additionalData: '',
+      instructions: '',
+    }])
+
+    expect(rpc).toHaveBeenCalledWith('support_admin_issue_manual_deliveries', {
+      p_order_id: 'order-1',
+      p_request_key: 'request-key',
+      p_deliveries: [{
+        order_item_id: 'item-1',
+        title: 'Gift Card USA',
+        activation_code: 'KEY-SECRET',
+        login: '',
+        password: '',
+        additional_data: '',
+        instructions: '',
+      }],
+    })
+    expect(result).toEqual({
+      ok: true,
+      value: { deliveryIds: ['delivery-1'], messageId: 'message-1', fulfillmentStatus: 'processing' },
+    })
+  })
+
+  it('loads delivery secrets only through the customer access-check RPC', async () => {
+    rpc.mockResolvedValue({
+      data: [{
+        id: 'delivery-1',
+        order_item_id: 'item-1',
+        title: 'Gift Card USA',
+        activation_code: 'KEY-SECRET',
+        login: '',
+        password: '',
+        additional_data: '',
+        instructions: 'Activate online',
+        created_at: '2026-10-31T12:00:00.000Z',
+      }],
+      error: null,
+    })
+    const result = await supabaseSupportRepository.listCustomerManualDeliveries('order-1', 'a'.repeat(64))
+
+    expect(rpc).toHaveBeenCalledWith('support_customer_list_manual_deliveries', {
+      p_order_id: 'order-1',
+      p_guest_token: 'a'.repeat(64),
+    })
+    expect(result.ok && result.value[0].activationCode).toBe('KEY-SECRET')
+  })
+
+  it('surfaces customer delivery access denial without returning any delivery data', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'Support conversation unavailable' } })
+    const result = await supabaseSupportRepository.listCustomerManualDeliveries('foreign-order', 'invalid')
+
+    expect(result).toEqual({ ok: false, error: 'Support conversation unavailable' })
+  })
+
+  it('surfaces a failed manual-delivery transaction as an error', async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: 'Order must be paid and active' } })
+    const result = await supabaseSupportRepository.issueManualDeliveries('order-1', 'request-key', [])
+
+    expect(result).toEqual({ ok: false, error: 'Order must be paid and active' })
+  })
+
+  it('resends an existing delivery through the resend RPC without an issuance payload', async () => {
+    rpc.mockResolvedValue({
+      data: { id: 'message-2', sender_role: 'manager', body: 'BEZB_MANUAL_DELIVERY:{}', created_at: '2026-10-31T12:01:00.000Z' },
+      error: null,
+    })
+    const result = await supabaseSupportRepository.resendManualDelivery('order-1', 'delivery-1')
+
+    expect(rpc).toHaveBeenCalledWith('support_admin_resend_manual_delivery', {
+      p_order_id: 'order-1',
+      p_delivery_id: 'delivery-1',
+    })
+    expect(result.ok && result.value.id).toBe('message-2')
+  })
 })

@@ -3,17 +3,83 @@ import type { SupportAuthor, SupportMessage, SupportThread } from '../../types'
 import { formatDateTime } from '../../utils/formatDate'
 import { btnPrimary, inputClass } from '../common/ui'
 import { supportRepository } from '../../services/support'
-import type { Result } from '../../types'
+import type { ManualDelivery, Result } from '../../types'
+
+const MANUAL_DELIVERY_PREFIX = 'BEZB_MANUAL_DELIVERY:'
+
+function manualDeliveryIds(body: string): string[] | null {
+  if (!body.startsWith(MANUAL_DELIVERY_PREFIX)) return null
+  try {
+    const payload: unknown = JSON.parse(body.slice(MANUAL_DELIVERY_PREFIX.length))
+    if (!payload || typeof payload !== 'object' || !('delivery_ids' in payload) || !Array.isArray(payload.delivery_ids)) {
+      return []
+    }
+    return [...new Set(payload.delivery_ids.filter((id): id is string => typeof id === 'string'))]
+  } catch {
+    return []
+  }
+}
+
+function DeliveredItem({ delivery }: { delivery: ManualDelivery }) {
+  const [copied, setCopied] = useState('')
+  const [copyError, setCopyError] = useState('')
+  const fields = [
+    ['Код', delivery.activationCode],
+    ['Логин', delivery.login],
+    ['Пароль', delivery.password],
+    ['Дополнительные данные', delivery.additionalData],
+  ].filter((field): field is [string, string] => Boolean(field[1]))
+  const copy = async (label: string, value: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(label)
+      setCopyError('')
+    } catch (error) {
+      setCopyError(error instanceof Error ? `Не удалось скопировать ${label.toLowerCase()}: ${error.message}` : `Не удалось скопировать ${label.toLowerCase()}.`)
+    }
+  }
+  return (
+    <article className="space-y-3 border border-green-700/50 bg-graphite p-4" aria-label={`Выданный товар: ${delivery.title}`}>
+      <h3 className="text-lg font-semibold text-white">🎁 Ваш заказ готов!</h3>
+      <p className="text-sm text-silver">Товар: <strong className="text-white">{delivery.title}</strong></p>
+      {fields.map(([label, value]) => (
+        <div key={label} className="space-y-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <span className="text-sm text-silver">{label}:</span>
+            <button type="button" className="text-xs underline" onClick={() => void copy(label, value)}>
+              Скопировать {label.toLowerCase()}
+            </button>
+          </div>
+          <code className="block whitespace-pre-wrap break-all rounded bg-ink p-2 text-sm text-white">{value}</code>
+          {copied === label && <span role="status" className="text-xs text-silver">Скопировано</span>}
+        </div>
+      ))}
+      {delivery.instructions && (
+        <div className="space-y-1 border-t border-line pt-3">
+          <h4 className="text-sm font-semibold">Инструкция по активации</h4>
+          <p className="whitespace-pre-wrap text-sm text-silver">{delivery.instructions}</p>
+          <button type="button" className="text-xs underline" onClick={() => void copy('инструкцию', delivery.instructions)}>
+            Скопировать инструкцию
+          </button>
+          {copied === 'инструкцию' && <span role="status" className="ml-2 text-xs text-silver">Скопировано</span>}
+        </div>
+      )}
+      {copyError && <p role="alert" className="text-xs text-red-hot">{copyError}</p>}
+    </article>
+  )
+}
 
 export function SupportConversation({
   thread,
   author,
   guestToken,
+  manualDeliveries = [],
   onChange,
 }: {
   thread: SupportThread
   author: SupportAuthor
   guestToken?: string
+  manualDeliveries?: ManualDelivery[]
   onChange: (thread: SupportThread) => void
 }) {
   const [text, setText] = useState('')
@@ -54,6 +120,21 @@ export function SupportConversation({
         ) : (
           thread.messages.map((message) => {
             const fromSupport = message.author === 'support'
+            const deliveryIds = manualDeliveryIds(message.text)
+            if (deliveryIds) {
+              const deliveriesById = new Map(manualDeliveries.map((delivery) => [delivery.id, delivery]))
+              const messageDeliveries = deliveryIds.flatMap((id) => {
+                const delivery = deliveriesById.get(id)
+                return delivery ? [delivery] : []
+              })
+              return (
+                <article key={message.id} className="space-y-3" aria-label="Системное сообщение о выдаче">
+                  {messageDeliveries.length > 0
+                    ? messageDeliveries.map((delivery) => <DeliveredItem key={delivery.id} delivery={delivery} />)
+                    : <p className="border border-line p-3 text-sm text-silver">Данные товара отправлены покупателю.</p>}
+                </article>
+              )
+            }
             return (
               <article
                 key={message.id}
