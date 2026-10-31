@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { Copy } from 'lucide-react'
 import { SupportConversation } from '../components/support/SupportConversation'
@@ -6,6 +6,25 @@ import { btnSecondary } from '../components/common/ui'
 import { supportRepository } from '../services/support'
 import type { SupportThread } from '../types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+
+function mergeThread(current: SupportThread, incoming: SupportThread): SupportThread {
+  const currentUpdatedAt = current.updatedAt ?? current.lastMessageAt ?? current.createdAt
+  const incomingUpdatedAt = incoming.updatedAt ?? incoming.lastMessageAt ?? incoming.createdAt
+  const incomingIsNewer = incomingUpdatedAt >= currentUpdatedAt
+  const messagesById = new Map(current.messages.map((message) => [message.id, message]))
+  for (const message of incoming.messages) messagesById.set(message.id, message)
+
+  return {
+    ...current,
+    ...(incomingIsNewer ? incoming : {}),
+    messages: [...messagesById.values()].sort((a, b) =>
+      a.sentAt.localeCompare(b.sentAt) || a.id.localeCompare(b.id),
+    ),
+    lastMessageAt: incoming.lastMessageAt && incoming.lastMessageAt > (current.lastMessageAt ?? '')
+      ? incoming.lastMessageAt
+      : current.lastMessageAt,
+  }
+}
 
 export default function SupportChatPage() {
   const { orderId = '' } = useParams()
@@ -17,6 +36,12 @@ export default function SupportChatPage() {
   const [copyMessage, setCopyMessage] = useState('')
   useDocumentTitle(thread ? `Поддержка · ${thread.orderNumber}` : 'Поддержка по заказу')
 
+  const updateThread = useCallback((incoming: SupportThread) => {
+    setThread((current) => current && current.orderId === incoming.orderId
+      ? mergeThread(current, incoming)
+      : incoming)
+  }, [])
+
   useEffect(() => {
     let active = true
     setLoading(true)
@@ -26,7 +51,7 @@ export default function SupportChatPage() {
       if (!active) return
       if (!result.ok) setError(result.error)
       else {
-        setThread(result.value)
+        updateThread(result.value)
         const marked = await supportRepository.markCustomerRead(orderId, guestToken)
         if (!marked.ok && active) setError(marked.error)
       }
@@ -37,7 +62,42 @@ export default function SupportChatPage() {
       setLoading(false)
     })
     return () => { active = false }
-  }, [orderId, guestToken])
+  }, [orderId, guestToken, updateThread])
+
+  useEffect(() => {
+    if (!thread || thread.orderId !== orderId) return
+    let active = true
+    let requestInFlight = false
+    const refresh = async () => {
+      if (!active || requestInFlight) return
+      requestInFlight = true
+      try {
+        const result = await supportRepository.getCustomerThread(orderId, guestToken)
+        if (!active) return
+        if (result.ok) {
+          updateThread(result.value)
+          setError('')
+          const marked = await supportRepository.markCustomerRead(orderId, guestToken)
+          if (!marked.ok && active) setError(marked.error)
+        } else {
+          setError(result.error)
+        }
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : 'Не удалось обновить переписку.')
+      } finally {
+        requestInFlight = false
+      }
+    }
+    const intervalId = window.setInterval(() => void refresh(), 5000)
+    return () => {
+      active = false
+      window.clearInterval(intervalId)
+    }
+  }, [orderId, guestToken, thread?.orderId, updateThread])
+
+  const handleThreadChange = useCallback((updated: SupportThread) => {
+    updateThread(updated)
+  }, [updateThread])
 
   const copyLink = async () => {
     try {
@@ -79,7 +139,7 @@ export default function SupportChatPage() {
               </button>
               {copyMessage && <p role="status" className="self-center text-xs text-silver">{copyMessage}</p>}
             </div>
-            <SupportConversation thread={thread} author="customer" guestToken={guestToken} onChange={setThread} />
+            <SupportConversation thread={thread} author="customer" guestToken={guestToken} onChange={handleThreadChange} />
             <div className="flex flex-wrap gap-3">
               <Link to="/support" className={btnSecondary}>Мои обращения</Link>
             </div>
