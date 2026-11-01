@@ -51,13 +51,17 @@ describe('чат поддержки покупателя', () => {
     expect(screen.getAllByRole('link', { name: 'Мои обращения' })[0].getAttribute('href')).toBe('/support')
   })
 
-  it('показывает системные сообщения оплаты отдельно от сообщений покупателя и поддержки', async () => {
+  it('показывает автоматическое приветствие как входящее сообщение от BezB', async () => {
     await localSupportRepository.registerOrder(order)
     await localSupportRepository.confirmDemoPayment(order.orderId)
     renderChat()
 
-    expect(await screen.findByText('BezB · уведомление')).toBeTruthy()
-    expect(screen.getByText(/Спасибо за заказ в BezB!/)).toBeTruthy()
+    const sender = await screen.findByText('BezB')
+    const message = screen.getByText(/Спасибо за заказ в BezB!/)
+    const bubble = sender.closest('article')
+    expect(bubble?.className).toContain('bg-graphite')
+    expect(bubble?.className).not.toContain('text-center')
+    expect(message.textContent).toContain('\n\n')
     expect(screen.queryByText('Покупатель')).toBeNull()
   })
 
