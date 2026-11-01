@@ -1,7 +1,7 @@
 import type {
   ManualDeliveryInput,
   Result,
-  SupportAuthor,
+  SupportMessageAuthor,
   SupportMessage,
   SupportOrderRegistration,
   SupportThread,
@@ -34,7 +34,7 @@ function isThread(value: unknown): value is SupportThread {
       (message) =>
         message &&
         typeof message.id === 'string' &&
-        (message.author === 'customer' || message.author === 'support') &&
+        (message.author === 'customer' || message.author === 'support' || message.author === 'system') &&
         typeof message.text === 'string' &&
         typeof message.sentAt === 'string' &&
         typeof message.readBySupport === 'boolean',
@@ -87,13 +87,13 @@ function updateThread(
   return saved.ok ? { ok: true, value: changed.value } : saved
 }
 
-function makeMessage(author: SupportAuthor, text: string, sentAt: string): SupportMessage {
+function makeMessage(author: SupportMessageAuthor, text: string, sentAt: string): SupportMessage {
   return {
     id: crypto.randomUUID(),
     author,
     text,
     sentAt,
-    readBySupport: author === 'support',
+    readBySupport: author !== 'customer',
   }
 }
 
@@ -122,10 +122,21 @@ export const localSupportRepository: SupportRepository = {
   },
 
   async confirmDemoPayment(orderId) {
-    return updateThread(orderId, (thread) => ({
-      ok: true,
-      value: { ...thread, demoPaymentAt: thread.demoPaymentAt ?? new Date().toISOString() },
-    }))
+    return updateThread(orderId, (thread) => {
+      if (thread.demoPaymentAt) return { ok: true, value: thread }
+      const paidAt = new Date().toISOString()
+      return {
+        ok: true,
+        value: {
+          ...thread,
+          demoPaymentAt: paidAt,
+          messages: [
+            ...thread.messages,
+            makeMessage('system', 'Здравствуйте! Спасибо за заказ в BezB!\n\nВаш заказ получен, и мы уже занимаемся его обработкой.\n\nКак только всё будет готово, отправим ваш цифровой товар прямо в этот чат.\n\nЕсли у вас возникнут вопросы — пишите сюда, менеджер обязательно вам ответит.\n\nСпасибо, что выбрали BezB!', paidAt),
+          ],
+        },
+      }
+    })
   },
 
   async getThread(orderId) {

@@ -42,13 +42,13 @@ describe('локальный репозиторий поддержки', () => {
     expect(customerMessage.ok).toBe(true)
 
     const unread = await localSupportRepository.listThreads()
-    expect(unread.ok && unread.value[0].messages[0].readBySupport).toBe(false)
+    expect(unread.ok && unread.value[0].messages.find((message) => message.author === 'customer')?.readBySupport).toBe(false)
 
     const read = await localSupportRepository.markCustomerMessagesRead(order.orderId)
-    expect(read.ok && read.value.messages[0].readBySupport).toBe(true)
+    expect(read.ok && read.value.messages.find((message) => message.author === 'customer')?.readBySupport).toBe(true)
 
     const reply = await localSupportRepository.sendMessage(order.orderId, 'support', 'Поможем разобраться')
-    expect(reply.ok && reply.value.messages[1].author).toBe('support')
+    expect(reply.ok && reply.value.messages.at(-1)?.author).toBe('support')
 
     const closed = await localSupportRepository.setStatus(order.orderId, 'closed')
     expect(closed.ok && closed.value.status).toBe('closed')
@@ -58,14 +58,19 @@ describe('локальный репозиторий поддержки', () => {
     const reopened = await localSupportRepository.setStatus(order.orderId, 'open')
     expect(reopened.ok && reopened.value.status).toBe('open')
     const continued = await localSupportRepository.sendMessage(order.orderId, 'customer', 'Продолжаю')
-    expect(continued.ok && continued.value.messages).toHaveLength(3)
+    expect(continued.ok && continued.value.messages).toHaveLength(4)
   })
 
-  it('повторная демо-оплата не создаёт новый статус или сообщение в заказе', async () => {
+  it('после демо-оплаты один раз добавляет системное приветствие в чат заказа', async () => {
     await localSupportRepository.registerOrder(order)
     const first = await localSupportRepository.confirmDemoPayment(order.orderId)
     const second = await localSupportRepository.confirmDemoPayment(order.orderId)
     expect(first.ok && second.ok && second.value.demoPaymentAt).toBe(first.ok ? first.value.demoPaymentAt : null)
+    expect(second.ok && second.value.messages).toHaveLength(1)
+    expect(second.ok && second.value.messages[0]).toMatchObject({
+      author: 'system',
+      text: expect.stringContaining('Спасибо за заказ в BezB!'),
+    })
     expect(window.localStorage.getItem('bezb:admin:orders')).toBeNull()
   })
 })

@@ -136,6 +136,7 @@ export function SupportConversation({
         ) : (
           thread.messages.map((message) => {
             const fromSupport = message.author === 'support'
+            const fromSystem = message.author === 'system'
             const deliveryIds = manualDeliveryIds(message.text)
             if (deliveryIds) {
               const deliveriesById = new Map(manualDeliveries.map((delivery) => [delivery.id, delivery]))
@@ -156,11 +157,13 @@ export function SupportConversation({
               <article
                 key={message.id}
                 className={`max-w-[95%] whitespace-pre-wrap break-words border p-3 sm:max-w-[85%] ${
-                  fromSupport ? 'ml-auto border-red/50 bg-red/10' : 'border-line bg-graphite'
+                  fromSystem
+                    ? 'mx-auto border-line bg-ink text-center'
+                    : fromSupport ? 'ml-auto border-red/50 bg-red/10' : 'border-line bg-graphite'
                 }`}
               >
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <strong className="text-white">{fromSupport ? 'Поддержка' : 'Покупатель'}</strong>
+                  <strong className="text-white">{fromSystem ? 'BezB · уведомление' : fromSupport ? 'Поддержка' : 'Покупатель'}</strong>
                   <time className="text-silver" dateTime={message.sentAt}>{formatDateTime(message.sentAt)}</time>
                 </div>
                 <p className="text-sm text-silver">{message.text}</p>

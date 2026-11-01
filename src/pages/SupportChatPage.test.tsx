@@ -51,6 +51,16 @@ describe('чат поддержки покупателя', () => {
     expect(screen.getAllByRole('link', { name: 'Мои обращения' })[0].getAttribute('href')).toBe('/support')
   })
 
+  it('показывает системные сообщения оплаты отдельно от сообщений покупателя и поддержки', async () => {
+    await localSupportRepository.registerOrder(order)
+    await localSupportRepository.confirmDemoPayment(order.orderId)
+    renderChat()
+
+    expect(await screen.findByText('BezB · уведомление')).toBeTruthy()
+    expect(screen.getByText(/Спасибо за заказ в BezB!/)).toBeTruthy()
+    expect(screen.queryByText('Покупатель')).toBeNull()
+  })
+
   it('показывает сетевую ошибку отправки и позволяет повторить попытку', async () => {
     await localSupportRepository.registerOrder(order)
     vi.spyOn(localSupportRepository, 'sendCustomerMessage').mockRejectedValueOnce(new Error('Нет соединения'))

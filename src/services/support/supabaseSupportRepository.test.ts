@@ -96,6 +96,28 @@ describe('Supabase support repository', () => {
     expect(result.ok && result.value.author).toBe('support')
   })
 
+  it('maps database system messages as system-authored chat events', async () => {
+    rpc.mockResolvedValue({
+      data: {
+        ...thread,
+        messages: [{
+          id: 'system-message',
+          sender_role: 'system',
+          body: 'Спасибо за заказ!',
+          created_at: '2026-11-01T10:00:00.000Z',
+        }],
+      },
+      error: null,
+    })
+    const result = await supabaseSupportRepository.getAdminThread('order-1')
+
+    expect(result.ok && result.value.messages[0]).toMatchObject({
+      id: 'system-message',
+      author: 'system',
+      text: 'Спасибо за заказ!',
+    })
+  })
+
   it('uses the delivery RPC for codes, rather than a public code lookup', async () => {
     rpc.mockResolvedValue({
       data: { id: 'delivery-message', sender_role: 'manager', body: 'Код выдан', created_at: '2026-10-30T00:03:00.000Z' },

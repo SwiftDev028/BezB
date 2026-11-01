@@ -9,13 +9,13 @@ function mapMessage(value: unknown): SupportMessage | null {
   const row = value as Row
   if (
     typeof row.id !== 'string' ||
-    (row.sender_role !== 'customer' && row.sender_role !== 'manager') ||
+    (row.sender_role !== 'customer' && row.sender_role !== 'manager' && row.sender_role !== 'system') ||
     typeof row.body !== 'string' ||
     typeof row.created_at !== 'string'
   ) return null
   return {
     id: row.id,
-    author: row.sender_role === 'manager' ? 'support' : 'customer',
+    author: row.sender_role === 'manager' ? 'support' : row.sender_role === 'system' ? 'system' : 'customer',
     text: row.body,
     sentAt: row.created_at,
     readBySupport: Boolean(row.read_by_manager_at),

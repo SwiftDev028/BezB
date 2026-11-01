@@ -1,4 +1,5 @@
 export type SupportAuthor = 'customer' | 'support'
+export type SupportMessageAuthor = SupportAuthor | 'system'
 export type SupportStatus = 'open' | 'closed'
 
 export interface SupportOrderItem {
@@ -9,7 +10,7 @@ export interface SupportOrderItem {
 
 export interface SupportMessage {
   id: string
-  author: SupportAuthor
+  author: SupportMessageAuthor
   text: string
   sentAt: string
   readBySupport: boolean

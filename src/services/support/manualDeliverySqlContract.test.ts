@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import migration from '../../../supabase/migrations/202610310001_manual_order_deliveries.sql?raw'
 import editMigration from '../../../supabase/migrations/202611010001_edit_manual_order_deliveries.sql?raw'
+import supportChatMigration from '../../../supabase/migrations/202610300001_support_chat.sql?raw'
+import paymentAutomation from '../../../supabase/migrations/202611010002_support_payment_automation.sql?raw'
 
 function functionDefinition(name: string): string {
   const declaration = migration.indexOf(`function public.${name}(`)
@@ -82,6 +84,69 @@ describe('manual order delivery migration security contract', () => {
       expect(customerList).toContain("'revision', d.revision")
       expect(customerList).not.toContain("'history'")
       expect(customerList).not.toContain('manual_delivery_audit')
+    })
+  })
+
+  describe('support payment automation migration contract', () => {
+    it('sends the welcome message only on an unpaid-to-paid order transition and starts one deadline', () => {
+      expect(paymentAutomation).toMatch(/after update of payment_status on public\.orders/i)
+      expect(paymentAutomation).toMatch(/new\.payment_status = 'paid' and old\.payment_status is distinct from 'paid'/i)
+      expect(paymentAutomation).toMatch(/payment_greeting_sent_at is not null/i)
+      expect(paymentAutomation).toMatch(/busy_followup_due_at = coalesce\(busy_followup_due_at, v_started_at \+ interval '5 minutes'\)/i)
+      expect(paymentAutomation).toContain('Здравствуйте! Спасибо за заказ в BezB!')
+      expect(paymentAutomation).toContain('Ваш заказ получен, и мы уже занимаемся его обработкой.')
+    })
+
+    it('uses a server-side cron worker, per-thread locking, and one-time system-message uniqueness', () => {
+      expect(paymentAutomation).toMatch(/create extension if not exists pg_cron/i)
+      expect(paymentAutomation).toMatch(/cron\.schedule\([\s\S]*'\* \* \* \* \*'/i)
+      expect(paymentAutomation).toMatch(/busy_followup_due_at <= clock_timestamp\(\)/i)
+      expect(paymentAutomation).toMatch(/busy_followup_sent_at is null/i)
+      expect(paymentAutomation).toMatch(/for update skip locked/i)
+      expect(paymentAutomation).toMatch(/create unique index if not exists support_system_message_once_idx/i)
+      expect(paymentAutomation).toMatch(/revoke all on function bezb_private\.process_due_support_followups\(\) from public, anon, authenticated/i)
+      expect(paymentAutomation).toContain('Support payment automation requires the pg_cron extension')
+      expect(paymentAutomation).toMatch(/pg_catalog\.pg_advisory_xact_lock\(20261101, 2\)/i)
+      expect(paymentAutomation).toMatch(/where jobname = 'bezb-support-payment-followups'/i)
+      expect(paymentAutomation).toMatch(/and v_job\.active/i)
+      expect(paymentAutomation).toContain('Support payment automation post-install verification failed')
+      expect(paymentAutomation).toMatch(/having count\(distinct column_name\) = 3/i)
+    })
+
+    it('skips the follow-up after any manager response and does not reset due time on customer messages', () => {
+      const workerStart = paymentAutomation.indexOf('create or replace function bezb_private.process_due_support_followups')
+      const workerEnd = paymentAutomation.indexOf('$$;', workerStart)
+      const worker = paymentAutomation.slice(workerStart, workerEnd)
+      expect(worker).toMatch(/m\.sender_role = 'manager'/i)
+      expect(worker).toMatch(/set busy_followup_due_at = null/i)
+      expect(worker).toContain('Сейчас у нас повышенная загруженность')
+      expect(worker).not.toMatch(/sender_role = 'customer'[\s\S]*busy_followup_due_at\s*=/i)
+      expect(paymentAutomation).toMatch(/check \(sender_role in \('customer', 'manager', 'system'\)\)/i)
+    })
+
+    it('serializes manager replies and follow-ups on the same thread row', () => {
+      const managerStart = paymentAutomation.indexOf('create or replace function public.support_admin_send_message')
+      const managerEnd = paymentAutomation.indexOf('$$;', managerStart)
+      const managerRpc = paymentAutomation.slice(managerStart, managerEnd)
+      const workerStart = paymentAutomation.indexOf('create or replace function bezb_private.process_due_support_followups')
+      const workerEnd = paymentAutomation.indexOf('$$;', workerStart)
+      const worker = paymentAutomation.slice(workerStart, workerEnd)
+
+      expect(supportChatMigration).toMatch(/select \* into v_thread from public\.support_threads where order_id = p_order_id for update/i)
+      expect(managerRpc).toMatch(/from public\.support_threads[\s\S]*where order_id = p_order_id\s+for update/i)
+      expect(managerRpc.indexOf('for update')).toBeLessThan(managerRpc.indexOf('insert into public.support_messages'))
+      expect(managerRpc).toMatch(/busy_followup_due_at = null/i)
+      expect(worker).toMatch(/from public\.support_threads t[\s\S]*for update skip locked/i)
+      expect(worker.indexOf('for update skip locked')).toBeLessThan(worker.indexOf("m.sender_role = 'manager'"))
+      expect(worker.indexOf("m.sender_role = 'manager'")).toBeLessThan(worker.indexOf('insert into public.support_messages'))
+    })
+
+    it('adds automation state to existing threads without deleting or recreating them', () => {
+      expect(paymentAutomation).toMatch(/alter table public\.support_threads\s+add column if not exists payment_greeting_sent_at/i)
+      expect(paymentAutomation).toMatch(/add column if not exists busy_followup_due_at/i)
+      expect(paymentAutomation).toMatch(/add column if not exists busy_followup_sent_at/i)
+      expect(paymentAutomation).not.toMatch(/delete from public\.support_threads|truncate table public\.support_threads|drop table public\.support_threads/i)
+      expect(paymentAutomation).not.toMatch(/after insert on public\.orders/i)
     })
   })
 
