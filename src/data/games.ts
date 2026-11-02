@@ -38,6 +38,21 @@ export const games: GamePage[] = [
     platformNote:
       'На этом этапе в BezB подготовлены только варианты для PlayStation 5. Товары Steam и Epic Games не создаются.',
   },
+  {
+    slug: 'call-of-duty-modern-warfare-4',
+    title: 'Call of Duty: Modern Warfare 4',
+    publisher: '',
+    description:
+      'Новая глава легендарной серии Call of Duty. Современный военный сеттинг, динамичные сражения и напряжённый мультиплеер.',
+    cover: '',
+    coverAlt: '',
+    accent: '#a63c32',
+    releaseNote: 'Дата выхода: 23 октября 2026 года.',
+    platforms: [{ category: 'playstation', label: 'PlayStation 5' }],
+    catalogTitlePattern: /^Call of Duty:\s*Modern Warfare 4(?:\s|$)/iu,
+    platformNote:
+      'На этой странице представлены только издания Standard Edition и Vault Edition для PlayStation 5.',
+  },
 ]
 
 export function getGame(slug: string | undefined): GamePage | undefined {

@@ -24,6 +24,17 @@ export const banners: Banner[] = [
     imageAlt: 'Официальный арт Phantom Blade Zero с главным героем Soul',
   },
   {
+    id: 'call-of-duty-modern-warfare-4',
+    eyebrow: 'Цифровые ключи · PlayStation 5',
+    title: 'CALL OF DUTY: MODERN WARFARE 4',
+    text: 'Новая глава легендарной серии Call of Duty. Современный военный сеттинг, динамичные сражения и напряжённый мультиплеер. Цифровые ключи для PS5. Standard Edition и Vault Edition.',
+    cta: 'Выбрать издание',
+    to: '/game/call-of-duty-modern-warfare-4',
+    accent: '#a63c32',
+    image: 'images/games/call-of-duty-modern-warfare-4.jpg',
+    imageAlt: 'Промоизображение Call of Duty: Modern Warfare с бойцом и золотым оружием',
+  },
+  {
     id: 'ai',
     eyebrow: 'AI-сервисы',
     title: 'Больше возможностей для работы и учёбы',

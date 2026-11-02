@@ -35,4 +35,18 @@ describe('страницы игр', () => {
     expect(banner?.to).toBe('/game/phantom-blade-zero')
     expect(banner?.image).toBe('images/games/phantom-blade-zero.jpg')
   })
+
+  it('Call of Duty: Modern Warfare 4 ведёт только к изданиям PS5 из каталога', () => {
+    const game = getGame('call-of-duty-modern-warfare-4')!
+    const banner = banners.find((item) => item.id === 'call-of-duty-modern-warfare-4')
+
+    expect(game.platforms).toEqual([{ category: 'playstation', label: 'PlayStation 5' }])
+    expect(game.catalogTitlePattern.test('Call of Duty: Modern Warfare 4 — Standard Edition')).toBe(true)
+    expect(game.catalogTitlePattern.test('Call of Duty: Modern Warfare 4 — Vault Edition')).toBe(true)
+    expect(game.catalogTitlePattern.test('Call of Duty: Modern Warfare III')).toBe(false)
+    expect(game.cover).toBe('')
+    expect(banner?.to).toBe('/game/call-of-duty-modern-warfare-4')
+    expect(banner?.image).toBeUndefined()
+    expect(banner?.title).toBe('CALL OF DUTY: MODERN WARFARE 4')
+  })
 })
