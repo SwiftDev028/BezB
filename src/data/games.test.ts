@@ -46,7 +46,7 @@ describe('страницы игр', () => {
     expect(game.catalogTitlePattern.test('Call of Duty: Modern Warfare III')).toBe(false)
     expect(game.cover).toBe('')
     expect(banner?.to).toBe('/game/call-of-duty-modern-warfare-4')
-    expect(banner?.image).toBeUndefined()
+    expect(banner?.image).toBe('images/games/call-of-duty-modern-warfare-4.jpg')
     expect(banner?.title).toBe('CALL OF DUTY: MODERN WARFARE 4')
   })
 })
