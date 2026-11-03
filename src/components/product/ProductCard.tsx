@@ -38,7 +38,7 @@ export function ProductCard({ product, layout = 'grid' }: ProductCardProps) {
 
   return (
     <article
-      className={`group relative flex overflow-hidden border border-line bg-coal transition-colors hover:border-red ${
+      className={`group relative flex h-full overflow-hidden border border-line bg-coal transition-colors hover:border-red ${
         isList ? 'flex-col sm:flex-row' : 'flex-col'
       }`}
     >
@@ -54,27 +54,27 @@ export function ProductCard({ product, layout = 'grid' }: ProductCardProps) {
         <FavoriteButton productId={product.id} title={product.title} className="absolute right-1 top-1" />
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-3 sm:p-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 p-3 sm:p-4">
         <div className="flex-1">
-          <p className="text-xs uppercase tracking-wider text-silver">
+          <p className="min-h-4 truncate text-xs uppercase tracking-wider text-silver">
             {product.platform} · {typeLabels[product.type]}
           </p>
-          <h3 className="mt-1 text-lg normal-case leading-tight sm:text-xl">
+          <h3 className="mt-1 line-clamp-2 h-[2.4em] text-lg normal-case leading-tight sm:text-xl">
             <Link to={href} className="hover:text-red-hot">
               {product.title}
             </Link>
           </h3>
-          {variantDetails.length > 0 && (
-            <p className="mt-1 text-sm text-silver">{variantDetails.join(' · ')}</p>
-          )}
-          <p className="mt-2 line-clamp-2 max-w-xl break-words text-sm text-silver [overflow-wrap:anywhere]">
+          <p className="mt-1 h-10 overflow-hidden break-words text-sm text-silver [overflow-wrap:anywhere]">
+            {variantDetails.length > 0 ? variantDetails.join(' · ') : <span aria-hidden="true">&nbsp;</span>}
+          </p>
+          <p className="mt-2 line-clamp-2 h-10 overflow-hidden max-w-xl break-words text-sm text-silver [overflow-wrap:anywhere]">
             {productDescriptionPreview(product.description)}
           </p>
         </div>
 
         <Price product={product} />
 
-        <div className={`flex gap-2 ${isList ? 'flex-col sm:flex-row' : 'flex-col min-[480px]:flex-row'}`}>
+        <div className={`flex min-h-24 gap-2 min-[480px]:min-h-[4.5rem] ${isList ? 'flex-col sm:flex-row' : 'flex-col min-[480px]:flex-row'}`}>
           {needsRegion && product.available ? (
             <Link to={href} className={`${btnPrimary} flex-1`}>
               {/* в двух узких колонках длинная подпись переносится на 3–4 строки */}

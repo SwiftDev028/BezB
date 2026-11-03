@@ -11,12 +11,12 @@ export function ProductGrid({ products, layout = 'grid' }: ProductGridProps) {
     <ul
       className={
         layout === 'list'
-          ? 'grid grid-cols-1 gap-3'
-          : 'grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4'
+          ? 'grid auto-rows-fr grid-cols-1 gap-3'
+          : 'grid auto-rows-fr grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4'
       }
     >
       {products.map((p) => (
-        <li key={p.id} className="min-w-0">
+        <li key={p.id} className="h-full min-w-0">
           <ProductCard product={p} layout={layout} />
         </li>
       ))}
