@@ -2,6 +2,12 @@ import { Link } from 'react-router-dom'
 import { Logo } from '../common/Logo'
 import { infoNav, legalNav, mainNav } from '../navigation/navItems'
 
+const footerInfoNav = [
+  ...infoNav.filter((item) => item.to !== '/contacts'),
+  { to: '/account', label: 'Личный кабинет' },
+]
+const footerLegalNav = legalNav.filter((item) => item.to !== '/admin/orders')
+
 function LinkColumn({ title, items }: { title: string; items: { to: string; label: string }[] }) {
   return (
     <nav aria-label={title}>
@@ -28,22 +34,18 @@ export function Footer() {
           <p className="mt-3 font-display text-lg uppercase tracking-wide text-silver">Digital. Without Limits.</p>
         </div>
         <LinkColumn title="Каталог" items={mainNav} />
-        <LinkColumn title="Информация" items={infoNav} />
-        <LinkColumn title="Документы" items={legalNav} />
+        <LinkColumn title="Покупателям" items={footerInfoNav} />
+        <LinkColumn title="Правовая информация" items={footerLegalNav} />
       </div>
       <div className="border-t border-line">
         <div className="container-x space-y-3 py-5 text-xs leading-relaxed text-silver">
           <p>
-            Все изображения, логотипы, названия игр, программ и других продуктов, размещённые на сайте BezB, используются
-            в информационных целях. Все товарные знаки, логотипы и иные объекты интеллектуальной собственности принадлежат
-            их законным правообладателям. Их упоминание и использование на сайте не означает, что BezB является
-            официальным представителем, партнёром или аффилированным лицом соответствующих правообладателей.
+            BezB — независимый магазин цифровых товаров и не является официальным представителем или партнёром платформ и
+            правообладателей, упомянутых в каталоге.
           </p>
           <p>
-            BezB — независимый магазин цифровых товаров.
-            <br />
-            Онлайн-оплата пока не подключена. Обработка заказов и подтверждение оплаты осуществляются администратором
-            вручную.
+            Онлайн-оплата на сайте пока не подключена. Оформление заказа не означает списание денег или подтверждение
+            исполнения заказа. Условия получения зависят от конкретного товара и указаны в его карточке.
           </p>
           <p>© 2026 BezB. Все права защищены.</p>
         </div>
